@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+*.egg-info/
+**/build/
+
+# uv
+.uv-cache/
+
+# Datasets (download via torchvision or mount as volume)
+datasets/
+cifar-10-batches-py/
+mnist-data/
+
+# Trained model weights — large, rebuild via train_*.py
+*.pth
+
+# Simulation outputs
+gradio_runs/
+log/
+layer_record_*/
+temp_layer_record_*/
+result.log
+pip-list.txt
+example.txt
+
+# C++ build artifacts
+NeuroSIM/main
+NeuroSIM/*.o
+
+# Gradio runtime cache
+.gradio/
+
+# Install/build logs
+pytorch-quantization/install.log
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
