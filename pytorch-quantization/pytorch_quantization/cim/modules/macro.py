@@ -196,8 +196,11 @@ class CIM():
             return torch.clamp(torch.round(ADC_out), min=0.0, max= float(2**self._cim_args.adc_precision))
         
         # Get memory states
-        weights = weights.to(self._cim_args.mem_states.device)
-        weights_ref = weights_ref.to(self._cim_args.mem_states.device)
+        # NOTE: PyTorch advanced indexing requires index tensors to be
+        # torch.long / bool / byte. The compute path in simulate_array uses
+        # int32 for bit slicing, so cast here for safe indexing.
+        weights = weights.to(self._cim_args.mem_states.device).long()
+        weights_ref = weights_ref.to(self._cim_args.mem_states.device).long()
         
         memory_states = self._cim_args.mem_states[weights]
         memory_states_ref = self._cim_args.mem_states[weights_ref]

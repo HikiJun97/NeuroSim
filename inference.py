@@ -1,21 +1,24 @@
 import ast
 import argparse
+import json
+import os
+import sys
 import torch
 import torch.utils.data
 import torch.nn as nn
 from datetime import datetime
-from subprocess import call
+from subprocess import call, Popen, PIPE, STDOUT
 from pytorch_quantization.utils import misc, make_path, hook
 from quantize import quantize_model, evaluate
-from dataset import get_imagenet, get_cifar10, get_cifar100
+from dataset import get_imagenet, get_cifar10, get_cifar100, get_mnist
 
 def parse_args():
     parser = argparse.ArgumentParser()
     # vgg8 (cifar10) software baseline: 89.66%
     # resnet18 (cifar100) software baseline: 75.59%
     # resnet50 (imagenet) software baseline (quantized): 80.012% (79.972%)
-    parser.add_argument('--dataset', default='cifar10', help='cifar10|cifar100|imagenet')
-    parser.add_argument('--model', default='vgg8', help='vgg8|DenseNet40|resnet18|resnet50|swin_t')
+    parser.add_argument('--dataset', default='cifar10', help='cifar10|cifar100|imagenet|mnist')
+    parser.add_argument('--model', default='vgg8', help='vgg8|DenseNet40|resnet18|resnet50|swin_t|lenet')
     parser.add_argument('--data_path', default='/path/to/datasets/', help='path to saved datasets')
     parser.add_argument('--model_path', default='./models/', help='path to saved models')
     parser.add_argument('--test_name', default='test', help='test name')
@@ -72,7 +75,10 @@ def parse_args():
     parser.add_argument("--adc_quant_method", type=str, default='scale')
     parser.add_argument("--optimize_adc",type=int, default=0)
     parser.add_argument("--adc_enable",type=int, default=1)
-    
+
+    # If set, all per-run artifacts go here and the deep make_path tree is skipped.
+    parser.add_argument('--run_dir', type=str, default='', help='if set, use this flat directory as logdir (skips make_path tree)')
+
     args = parser.parse_args()
 
     # Convert string lists to actual lists
@@ -89,7 +95,11 @@ def main():
     device = torch.device(f"cuda:{args.gpu}")
     
     current_time = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
-    args.logdir = make_path.makepath(args,['log_interval','test_interval','logdir','epochs','gpu','ngpu','debug','data_path','model_path'])
+    if args.run_dir:
+        os.makedirs(args.run_dir, exist_ok=True)
+        args.logdir = args.run_dir
+    else:
+        args.logdir = make_path.makepath(args,['log_interval','test_interval','logdir','epochs','gpu','ngpu','debug','data_path','model_path','run_dir'])
     misc.logger.init(args.logdir, 'test_log_' + current_time)
 
     args.logger = misc.logger.info
@@ -116,6 +126,9 @@ def main():
     elif args.dataset == 'cifar10':
         data_loader_quant = get_cifar10(args.calib_batch_size, args.data_path, train=True, val=False)
         data_loader_test = get_cifar10(args.batch_size, args.data_path, train=False, val=True)
+    elif args.dataset == 'mnist':
+        data_loader_quant = get_mnist(args.calib_batch_size, args.data_path, train=True, val=False)
+        data_loader_test = get_mnist(args.batch_size, args.data_path, train=False, val=True)
 
     if args.num_batches == -1:
         args.num_batches = len(data_loader_test)
@@ -132,6 +145,10 @@ def main():
     model = model.to(device)
 
     accuracy = evaluate(model, args, criterion, data_loader_test, num_batches=args.num_batches, print_freq=1)
+
+    with open(os.path.join(args.logdir, "accuracy.json"), "w") as f:
+        json.dump({"accuracy": accuracy, "model": args.model, "dataset": args.dataset,
+                   "test_name": args.test_name}, f, indent=2)
 
     # Uncomment to write outputs to a file
     # with open(f'results/{args.model}/accuracy/{args.test_name}.csv', 'a') as f:
@@ -151,7 +168,15 @@ def main():
         print("on/off ratio: ")
         print(args.on_state / args.off_state)
 
-        call(["/bin/bash", './layer_record_'+str(args.model)+'/trace_command.sh'])
+        ppa_log = os.path.join(args.logdir, "ppa_output.log")
+        with open(ppa_log, "w") as out:
+            p = Popen(["/bin/bash", './layer_record_'+str(args.model)+'/trace_command.sh'],
+                      stdout=PIPE, stderr=STDOUT, bufsize=1, text=True)
+            for line in p.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                out.write(line)
+            p.wait()
 
 if __name__ == '__main__':
     main()

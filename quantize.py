@@ -3,7 +3,7 @@ import torch
 import torch.utils.data
 from tqdm import tqdm
 from torchvision import models
-from models import vgg, resnet
+from models import vgg, resnet, lenet
 
 import pytorch_quantization.cim.modules.macro as macro
 import pytorch_quantization.nn as quant_nn
@@ -109,11 +109,16 @@ def quantize_model(args, criterion, data_loader, data_loader_test):
             model = resnet.resnet18(num_classes=10)
         elif args.model == 'vgg8':
             model = vgg.vgg8()
+    elif args.dataset == 'mnist':
+        if args.model == 'lenet':
+            model = lenet.lenet5(num_classes=10)
 
     # Try to load user trained model
     if args.dataset != 'imagenet':
         print(f"\nLoading pretrained model {saved_model}...")
-        state_dict = torch.load(saved_model)
+        # Load to CPU first for maximum portability across CUDA / PyTorch versions,
+        # then move the model to the desired device later.
+        state_dict = torch.load(saved_model, map_location="cpu")
 
         # if model was saved after training with nn.DataParallel, remove 'module' from layer names
         for key in list(state_dict.keys()):

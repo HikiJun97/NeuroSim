@@ -134,3 +134,28 @@ def get_imagenet(batch_size, data_root='/usr/scratch1/datasets/imagenet/', train
 
     ds = ds[0] if len(ds) == 1 else ds
     return ds
+
+
+def get_mnist(batch_size, data_root='/tmp/public_dataset/pytorch', train=True, val=True, **kwargs):
+    # Native 1x28x28 — paired with a LeNet-style backbone (models/lenet.py).
+    data_root = os.path.expanduser(os.path.join(data_root, 'mnist-data'))
+    num_workers = kwargs.setdefault('num_workers', 1)
+    kwargs.pop('input_size', None)
+    print("Building MNIST data loader with {} workers".format(num_workers))
+
+    tfm = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,)),
+    ])
+
+    ds = []
+    if train:
+        ds.append(torch.utils.data.DataLoader(
+            datasets.MNIST(root=data_root, train=True, download=True, transform=tfm),
+            batch_size=batch_size, shuffle=True, pin_memory=True, **kwargs))
+    if val:
+        ds.append(torch.utils.data.DataLoader(
+            datasets.MNIST(root=data_root, train=False, download=True, transform=tfm),
+            batch_size=batch_size, shuffle=False, pin_memory=True, **kwargs))
+    ds = ds[0] if len(ds) == 1 else ds
+    return ds

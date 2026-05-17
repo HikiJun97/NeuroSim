@@ -63,7 +63,8 @@ def vgg8(pretrained=None):
     layers = make_layers(cfg)
     model = VGG(layers, num_classes=10)
     if pretrained is not None:
-        state_dict = torch.load(pretrained)
+        # Load on CPU for portability across CUDA / PyTorch versions.
+        state_dict = torch.load(pretrained, map_location="cpu")
         for key in list(state_dict.keys()):
             if 'module' in key:
                 state_dict[key.replace('module.', '')] = state_dict[key]
