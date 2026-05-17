@@ -1,0 +1,40 @@
+# Build artifacts & caches
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Compiled C++ binary (rebuilt inside image)
+NeuroSIM/main
+
+# Trained weights & datasets — mount these at runtime, don't bake into image
+*.pth
+datasets/
+cifar-10-batches-py/
+
+# Run outputs (mounted as volumes)
+gradio_runs/
+log/
+layer_record_*/
+temp_layer_record_*/
+result.log
+pip-list.txt
+example.txt
+
+# Editor / VCS
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Docs
+Documents/
+README.md
+
+# Local docker artifacts
+Dockerfile
+.dockerignore
