@@ -1,0 +1,22 @@
+services:
+  neurosim:
+    build: .
+    image: neurosim:latest
+    container_name: neurosim
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./datasets:/app/datasets
+      - ./models:/app/models
+      - ./gradio_runs:/app/gradio_runs
+    # Equivalent of `--gpus all` for `docker run`.
+    # Requires NVIDIA Container Toolkit on the host.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    tty: true
+    stdin_open: true
