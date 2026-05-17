@@ -24,6 +24,9 @@ from datetime import datetime
 from pathlib import Path
 
 import gradio as gr
+from dotenv import load_dotenv
+
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 INFERENCE = PROJECT_ROOT / "inference.py"
@@ -237,7 +240,21 @@ def _kill_lingering_proc() -> None:
 
 
 def build_ui():
-    with gr.Blocks(title="NeuroSim") as demo:
+    _autoscroll_js = """
+function() {
+    function hookLogScroll() {
+        const el = document.querySelector('#log_box textarea');
+        if (!el) { setTimeout(hookLogScroll, 500); return; }
+        const proto = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+        Object.defineProperty(el, 'value', {
+            set(v) { proto.set.call(this, v); this.scrollTop = this.scrollHeight; },
+            get() { return proto.get.call(this); }
+        });
+    }
+    hookLogScroll();
+}
+"""
+    with gr.Blocks(title="NeuroSim", js=_autoscroll_js) as demo:
         gr.Markdown("# NeuroSim Inference")
         gr.Markdown("`inference.py` 를 서브프로세스로 호출합니다. `--run_dir` 패치 필요.")
 
@@ -337,7 +354,7 @@ def build_ui():
             run_btn = gr.Button("Run", variant="primary")
             stop_btn = gr.Button("Stop")
 
-        log_box = gr.Textbox(label="실시간 로그", lines=25, max_lines=25, autoscroll=True)
+        log_box = gr.Textbox(label="실시간 로그", lines=25, max_lines=25, autoscroll=True, elem_id="log_box")
         copy_btn = gr.Button("로그 복사", size="sm")
 
         with gr.Row():
@@ -374,5 +391,20 @@ def build_ui():
 
 demo = build_ui().queue()
 
+
+def _parse_accounts() -> list[tuple[str, str]] | None:
+    raw = os.environ.get("APP_ACCOUNTS", "")
+    accounts = []
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if ":" not in pair:
+            continue
+        user, _, pw = pair.partition(":")
+        if user and pw:
+            accounts.append((user, pw))
+    return accounts or None
+
+
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True,
+                auth=_parse_accounts(), auth_message="NeuroSim — 로그인이 필요합니다.")

@@ -1,6 +1,7 @@
-# CUDA 12.6 runtime + cuDNN. "runtime" variant ships libcudart / cuDNN libs
-# without nvcc. NeuroSIM C++ only needs g++/make, so this is enough.
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
+# CUDA 12.8 devel + cuDNN. "devel" includes nvcc + headers (needed because
+# pytorch-quantization compiles CUDA C++ extensions). 12.8+ is required to
+# target sm_100 (Blackwell B200) and sm_120 (Blackwell RTX 50xx).
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -14,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         git \
+        ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 # uv installs itself + manages Python 3.13 inside the image.
@@ -28,12 +30,23 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 # --- Layer 2: project source + editable TensorRT fork install ---
+# Pin target CUDA archs here (close to the layer that uses it) so future
+# arch-list changes only invalidate the pytorch-quantization build layer
+# instead of forcing uv sync to re-download wheels. PyTorch auto-appends +PTX
+# to the last entry; 12.0 = Blackwell / RTX 50xx, 10.0 = B200.
+ENV TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0;10.0;12.0"
 COPY pytorch-quantization ./pytorch-quantization
-RUN uv pip install -e ./pytorch-quantization
+# pytorch-quantization's setup.py imports torch, but uv builds in an isolated
+# env by default. Reuse the already-synced .venv (which has torch) for the
+# build step via --no-build-isolation.
+RUN uv pip install --no-build-isolation -e ./pytorch-quantization
 
-# --- Layer 3: rest of the project + C++ NeuroSIM build ---
-COPY . .
+# --- Layer 3: C++ NeuroSIM build (invalidated only when NeuroSIM source changes) ---
+COPY NeuroSIM ./NeuroSIM
 RUN cd NeuroSIM && make
+
+# --- Layer 4: Python application source (changes most often — no compilation) ---
+COPY . .
 
 EXPOSE 7860
 

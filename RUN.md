@@ -51,6 +51,19 @@ uv run gradio gradio_app.py
 ```
 브라우저: `http://localhost:7860` (또는 콘솔에 찍힌 `https://*.gradio.live`)
 
+#### 로그인 설정 (선택)
+프로젝트 루트에 `.env` 파일을 만들고 `APP_ACCOUNTS`를 설정하면 Gradio 로그인 화면이 활성화됩니다.
+
+```dotenv
+# .env
+APP_ACCOUNTS=아이디1:비밀번호1,아이디2:비밀번호2
+```
+
+- 여러 계정은 콤마(`,`)로 구분, 아이디와 비밀번호는 콜론(`:`)으로 구분
+- 비밀번호에 콜론이 포함된 경우 첫 번째 콜론만 구분자로 처리됨
+- `APP_ACCOUNTS`가 없거나 비어 있으면 로그인 없이 동작
+- `.env` 파일은 `.gitignore`에 등록되어 있어 git에 커밋되지 않음
+
 ### 4) CLI 로 직접 실행
 ```bash
 uv run python inference.py \
@@ -87,19 +100,51 @@ docker run --rm --gpus all nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 nvidia-s
 
 > WSL2 환경에서는 Windows 의 NVIDIA Driver 만 설치돼 있으면 별도 작업 없이 그대로 됩니다. WSL2 내부에 추가 드라이버 설치는 **금지**.
 
-### 2) 이미지 빌드
-```bash
-docker build -t neurosim:latest .
-```
-- 첫 빌드 약 10분 (CUDA + PyTorch 다운로드)
-- 최종 이미지 약 6~7 GB
-- `.dockerignore` 가 데이터셋/가중치/결과를 제외 → 컨텍스트 전송이 가벼움
-
-### 3) 가중치 미리 준비
+### 2) 가중치 미리 준비
 호스트의 `models/` 디렉토리에 `.pth` 파일이 있어야 합니다 (볼륨 마운트 됨). 위 A-2 단계와 동일하게 학습.
 
-### 4) 컨테이너 실행
+### 3) 빌드 + 실행 (권장: docker compose)
+저장소 루트에 `docker-compose.yml` 이 있으므로 한 줄로 빌드 + 실행이 됩니다.
+
 ```bash
+# 처음 한 번 (빌드만)
+docker compose build
+
+# 실행 (foreground, Ctrl+C 로 정리)
+docker compose up
+
+# 또는 백그라운드 (detached)
+docker compose up -d
+docker compose logs -f neurosim     # 실시간 로그
+docker compose down                 # 중지 + 컨테이너 제거
+```
+브라우저: `http://localhost:7860`
+
+`docker-compose.yml` 에 포함된 설정:
+
+| 항목 | 값 |
+|---|---|
+| GPU | `deploy.resources.reservations.devices` → `nvidia / count: all` (≡ `--gpus all`) |
+| 포트 | `7860:7860` |
+| 볼륨 | `./datasets`, `./models`, `./gradio_runs` |
+| TTY | `tty: true`, `stdin_open: true` (≡ `-it`) |
+
+로그인을 설정하려면 프로젝트 루트의 `.env` 파일에 `APP_ACCOUNTS`를 추가하면 됩니다. `docker compose up` 실행 시 `.env`를 자동으로 읽습니다.
+
+```dotenv
+# .env
+APP_ACCOUNTS=아이디1:비밀번호1,아이디2:비밀번호2
+```
+
+- 첫 빌드 약 10분 (CUDA + PyTorch 다운로드)
+- 최종 이미지 약 6~7 GB
+- 코드 변경 후 재빌드: `docker compose build` (캐시 활용) 또는 `docker compose up --build`
+
+### 4) 빌드 + 실행 (대안: docker run 수동)
+compose 없이 직접 명령을 쓰고 싶으면:
+```bash
+docker build -t neurosim:latest .
+
 docker run --rm -it \
     --gpus all \
     -p 7860:7860 \
@@ -108,17 +153,13 @@ docker run --rm -it \
     -v "$(pwd)/gradio_runs:/app/gradio_runs" \
     neurosim:latest
 ```
-브라우저: `http://localhost:7860`
-
-| 옵션 | 의미 |
-|---|---|
-| `--gpus all` | 호스트 GPU 를 컨테이너에 연결 (Container Toolkit 가 처리) |
-| `-p 7860:7860` | Gradio 포트 노출 |
-| `-v ./datasets:/app/datasets` | CIFAR/MNIST 캐시 호스트 보존 |
-| `-v ./models:/app/models` | 학습 가중치 호스트 보존 |
-| `-v ./gradio_runs:/app/gradio_runs` | 시뮬레이션 결과 호스트로 노출 |
 
 ### 5) 동작 확인 (선택)
+```bash
+docker compose run --rm neurosim \
+    uv run python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.version.cuda)"
+```
+또는 docker run 으로:
 ```bash
 docker run --rm --gpus all neurosim:latest \
     uv run python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.version.cuda)"
@@ -180,9 +221,13 @@ CSV 행 수 = `2^bitcell` 이어야 함.
 
 ### Docker 컨테이너
 ```bash
-# foreground (Ctrl+C) 면 자동 정리
-# 다른 터미널에서 강제 중지:
-docker stop <container_id>
+# compose 사용 시:
+docker compose down                 # 컨테이너 중지 + 제거
+docker compose stop                 # 중지만 (이후 start 로 재개)
+
+# docker run 사용 시:
+docker stop neurosim                # container_name 기반
+# 또는 foreground (Ctrl+C) 면 자동 정리
 ```
 
 ### 디스크 정리
