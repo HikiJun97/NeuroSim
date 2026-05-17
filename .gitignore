@@ -1,6 +1,9 @@
 # Secrets
 .env
 
+# uv init placeholder
+main.py
+
 # Python
 __pycache__/
 **/__pycache__/
