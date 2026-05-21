@@ -48,8 +48,12 @@ def build_loaders(data_root: str, batch_size: int, num_workers: int):
         ]
     )
 
-    train_ds = datasets.CIFAR10(root=data_root, train=True, download=True, transform=train_tf)
-    test_ds = datasets.CIFAR10(root=data_root, train=False, download=True, transform=test_tf)
+    train_ds = datasets.CIFAR10(
+        root=data_root, train=True, download=True, transform=train_tf
+    )
+    test_ds = datasets.CIFAR10(
+        root=data_root, train=False, download=True, transform=test_tf
+    )
 
     train_loader = DataLoader(
         train_ds,
@@ -71,7 +75,9 @@ def build_loaders(data_root: str, batch_size: int, num_workers: int):
 
 
 @torch.no_grad()
-def evaluate(model: nn.Module, loader: DataLoader, device: torch.device, criterion: nn.Module):
+def evaluate(
+    model: nn.Module, loader: DataLoader, device: torch.device, criterion: nn.Module
+):
     model.eval()
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
@@ -88,7 +94,13 @@ def evaluate(model: nn.Module, loader: DataLoader, device: torch.device, criteri
     return loss_meter.avg, acc_meter.avg
 
 
-def train_one_epoch(model: nn.Module, loader: DataLoader, device: torch.device, optimizer, criterion: nn.Module):
+def train_one_epoch(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    optimizer,
+    criterion: nn.Module,
+):
     model.train()
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
@@ -111,8 +123,14 @@ def train_one_epoch(model: nn.Module, loader: DataLoader, device: torch.device, 
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train VGG8 on CIFAR-10 and save checkpoint compatible with quantize.py")
-    p.add_argument("--data_root", default="./cifar10-data", help="CIFAR-10 root folder (torchvision format)")
+    p = argparse.ArgumentParser(
+        description="Train VGG8 on CIFAR-10 and save checkpoint compatible with quantize.py"
+    )
+    p.add_argument(
+        "--data_root",
+        default="./cifar10-data",
+        help="CIFAR-10 root folder (torchvision format)",
+    )
     p.add_argument("--epochs", type=int, default=200)
     p.add_argument("--batch_size", type=int, default=128)
     p.add_argument("--lr", type=float, default=0.1)
@@ -140,7 +158,9 @@ def main():
 
     # quantize.py uses torchvision's root = <data_path>/cifar10/cifar10-data
     # This script keeps it simple: you can point --data_root to whatever you want.
-    train_loader, test_loader = build_loaders(args.data_root, args.batch_size, args.num_workers)
+    train_loader, test_loader = build_loaders(
+        args.data_root, args.batch_size, args.num_workers
+    )
 
     model = vgg.vgg8().to(device)
     criterion = nn.CrossEntropyLoss()
@@ -152,14 +172,18 @@ def main():
         weight_decay=args.weight_decay,
         nesterov=True,
     )
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 150], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[100, 150], gamma=0.1
+    )
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
 
     best_acc = -1.0
     start = time.time()
     for epoch in range(1, args.epochs + 1):
-        tr_loss, tr_acc = train_one_epoch(model, train_loader, device, optimizer, criterion)
+        tr_loss, tr_acc = train_one_epoch(
+            model, train_loader, device, optimizer, criterion
+        )
         te_loss, te_acc = evaluate(model, test_loader, device, criterion)
         scheduler.step()
 
@@ -174,13 +198,16 @@ def main():
             best_acc = te_acc
             # Save weights on CPU so the checkpoint can be loaded in environments
             # with different CUDA / PyTorch versions (or even CPU-only).
-            cpu_state_dict = {k: v.detach().cpu() for k, v in model.state_dict().items()}
+            cpu_state_dict = {
+                k: v.detach().cpu() for k, v in model.state_dict().items()
+            }
             torch.save(cpu_state_dict, args.output)
             print(f"saved best checkpoint: {args.output} (acc={best_acc:.2f})")
 
-    print(f"done in {time.time() - start:.1f}s, best_acc={best_acc:.2f}, output={args.output}")
+    print(
+        f"done in {time.time() - start:.1f}s, best_acc={best_acc:.2f}, output={args.output}"
+    )
 
 
 if __name__ == "__main__":
     main()
-

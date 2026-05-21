@@ -54,7 +54,9 @@ def check_batch(name: str, batch: dict, expect_n: int):
     if data.ndim != 2:
         raise ValueError(f"{name}: data.ndim={data.ndim}; expected 2")
     if data.shape != (expect_n, 3072):
-        raise ValueError(f"{name}: data.shape={data.shape}; expected ({expect_n}, 3072)")
+        raise ValueError(
+            f"{name}: data.shape={data.shape}; expected ({expect_n}, 3072)"
+        )
     if data.dtype != np.uint8:
         raise TypeError(f"{name}: data.dtype={data.dtype}; expected uint8")
 
@@ -64,13 +66,17 @@ def check_batch(name: str, batch: dict, expect_n: int):
     lab_min = int(np.min(labels))
     lab_max = int(np.max(labels))
     if not (0 <= lab_min <= lab_max <= 9):
-        raise ValueError(f"{name}: label range {lab_min}..{lab_max}; expected within 0..9")
+        raise ValueError(
+            f"{name}: label range {lab_min}..{lab_max}; expected within 0..9"
+        )
 
     # Filenames sanity
     if len(filenames) != expect_n:
         raise ValueError(f"{name}: filenames len={len(filenames)}; expected {expect_n}")
 
-    print(f"OK {name}: data={data.shape} {data.dtype}, labels range {lab_min}..{lab_max}")
+    print(
+        f"OK {name}: data={data.shape} {data.dtype}, labels range {lab_min}..{lab_max}"
+    )
 
 
 def main():
@@ -95,10 +101,16 @@ def main():
     meta = load_pickle(os.path.join(root, "batches.meta"))
     label_names = meta.get(b"label_names")
     if label_names is None:
-        raise KeyError(f"batches.meta: missing b'label_names'. Present keys={list(meta.keys())}")
+        raise KeyError(
+            f"batches.meta: missing b'label_names'. Present keys={list(meta.keys())}"
+        )
     if len(label_names) != 10:
-        raise ValueError(f"batches.meta: label_names len={len(label_names)}; expected 10")
-    decoded = [x.decode() if isinstance(x, (bytes, bytearray)) else str(x) for x in label_names]
+        raise ValueError(
+            f"batches.meta: label_names len={len(label_names)}; expected 10"
+        )
+    decoded = [
+        x.decode() if isinstance(x, (bytes, bytearray)) else str(x) for x in label_names
+    ]
     print("OK batches.meta: label_names =", decoded)
 
     print("DONE: cifar-10-batches-py looks valid and usable for training.")
@@ -106,4 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
