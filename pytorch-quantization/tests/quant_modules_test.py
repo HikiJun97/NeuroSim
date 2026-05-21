@@ -17,29 +17,28 @@
 
 
 """Tests of Quant Module Replacement"""
-import pytest
-import numpy as np
 
 import torch
-
 from pytorch_quantization import nn as quant_nn
 from pytorch_quantization import quant_modules
 from pytorch_quantization.quant_modules import QuantModuleReplacementHelper
-import tests.utils as test_utils
-from tests.fixtures import verbose
 
 # pylint:disable=missing-docstring, no-self-use
 
-class TestQuantModuleReplace():
 
+class TestQuantModuleReplace:
     def test_simple_default_args(self):
         replacement_helper = QuantModuleReplacementHelper()
         replacement_helper.prepare_state()
         replacement_helper.apply_quant_modules()
 
         # Linear module should not be replaced with its quantized version
-        assert(type(quant_nn.QuantLinear(16, 256, 3)) == type(torch.nn.Linear(16, 256, 3)))
-        assert(type(quant_nn.QuantConv2d(16, 256, 3)) == type(torch.nn.Conv2d(16, 256, 3)))
+        assert type(quant_nn.QuantLinear(16, 256, 3)) == type(
+            torch.nn.Linear(16, 256, 3)
+        )
+        assert type(quant_nn.QuantConv2d(16, 256, 3)) == type(
+            torch.nn.Conv2d(16, 256, 3)
+        )
 
         replacement_helper.restore_float_modules()
 
@@ -51,8 +50,12 @@ class TestQuantModuleReplace():
         replacement_helper.apply_quant_modules()
 
         # Linear module should not be replaced with its quantized version
-        assert(type(quant_nn.QuantLinear(16, 256, 3)) != type(torch.nn.Linear(16, 256, 3)))
-        assert(type(quant_nn.QuantConv2d(16, 256, 3)) == type(torch.nn.Conv2d(16, 256, 3)))
+        assert type(quant_nn.QuantLinear(16, 256, 3)) != type(
+            torch.nn.Linear(16, 256, 3)
+        )
+        assert type(quant_nn.QuantConv2d(16, 256, 3)) == type(
+            torch.nn.Conv2d(16, 256, 3)
+        )
 
         replacement_helper.restore_float_modules()
 
@@ -66,8 +69,12 @@ class TestQuantModuleReplace():
         # Although no replace list indicates Linear module should not be replaced with its
         # quantized version, since the custom_quant_modules still contains the Linear module's
         # mapping, it will replaced.
-        assert(type(quant_nn.QuantLinear(16, 256, 3)) == type(torch.nn.Linear(16, 256, 3)))
-        assert(type(quant_nn.QuantConv2d(16, 256, 3)) == type(torch.nn.Conv2d(16, 256, 3)))
+        assert type(quant_nn.QuantLinear(16, 256, 3)) == type(
+            torch.nn.Linear(16, 256, 3)
+        )
+        assert type(quant_nn.QuantConv2d(16, 256, 3)) == type(
+            torch.nn.Conv2d(16, 256, 3)
+        )
 
         replacement_helper.restore_float_modules()
 
@@ -77,7 +84,11 @@ class TestQuantModuleReplace():
 
         quant_modules.initialize(no_replace_list, custom_quant_modules)
 
-        assert(type(quant_nn.QuantLinear(16, 256, 3)) == type(torch.nn.Linear(16, 256, 3)))
-        assert(type(quant_nn.QuantConv2d(16, 256, 3)) == type(torch.nn.Conv2d(16, 256, 3)))
+        assert type(quant_nn.QuantLinear(16, 256, 3)) == type(
+            torch.nn.Linear(16, 256, 3)
+        )
+        assert type(quant_nn.QuantConv2d(16, 256, 3)) == type(
+            torch.nn.Conv2d(16, 256, 3)
+        )
 
         quant_modules.deactivate()

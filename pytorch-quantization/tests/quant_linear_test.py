@@ -20,21 +20,19 @@
 Most tests check the functionality of all the combinations in Quant Linear against the corresponding functionalities
 in tensor_quant.
 """
-import pytest
-import numpy as np
 
+import numpy as np
+import pytest
 import torch
 import torch.nn.functional as F
-from torch import nn
-
 from pytorch_quantization import tensor_quant
-from pytorch_quantization.nn.modules.tensor_quantizer import TensorQuantizer
 from pytorch_quantization import utils as quant_utils
 from pytorch_quantization.nn.modules import quant_linear
-import tests.utils as test_utils
+from pytorch_quantization.nn.modules.tensor_quantizer import TensorQuantizer
+from torch import nn
 
 # make everything run on the GPU
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.set_default_tensor_type("torch.cuda.FloatTensor")
 
 np.random.seed(1234)
 torch.manual_seed(1234)
@@ -42,15 +40,18 @@ torch.manual_seed(1234)
 # pylint:disable=missing-docstring, no-self-use
 
 
-class TestQuantLinear():
-
+class TestQuantLinear:
     def test_raise(self):
         with pytest.raises(ValueError) as excinfo:
             quant_linear_object = quant_linear.QuantLinear(
-                7, 9, bias=False, quant_desc_weight=tensor_quant.QuantDescriptor(fake_quant=False))
+                7,
+                9,
+                bias=False,
+                quant_desc_weight=tensor_quant.QuantDescriptor(fake_quant=False),
+            )
         assert "Only fake quantization is supported" in str(excinfo.value)
 
-    #Quantizing weight
+    # Quantizing weight
     def test_weight_fake_per_tensor(self):
         with torch.cuda.device(0):
             size = 256
@@ -58,23 +59,31 @@ class TestQuantLinear():
                 size,
                 size,
                 bias=False,
-                quant_desc_weight=tensor_quant.QuantDescriptor(axis=None))
+                quant_desc_weight=tensor_quant.QuantDescriptor(axis=None),
+            )
             quant_linear_object.input_quantizer.disable()
             test_input = torch.randn(size, size)
 
             weight_copy = quant_linear_object.weight.clone()
-            quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+            quant_weight = tensor_quant.fake_tensor_quant(
+                weight_copy, torch.max(torch.abs(weight_copy))
+            )
 
             out1 = F.linear(test_input, quant_weight)
             out2 = quant_linear_object(test_input)
-            np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+            np.testing.assert_array_equal(
+                out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+            )
 
     def test_weight_fake_per_channel(self):
         size_in = 255
         size_out = 257
         quant_linear_object = quant_linear.QuantLinear(
-            size_in, size_out, bias=False,
-            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_LINEAR_WEIGHT_PER_ROW)
+            size_in,
+            size_out,
+            bias=False,
+            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_LINEAR_WEIGHT_PER_ROW,
+        )
         quant_linear_object.input_quantizer.disable()
         test_input = torch.randn(32, size_in)
 
@@ -84,72 +93,108 @@ class TestQuantLinear():
 
         out1 = F.linear(test_input, quant_weight)
         out2 = quant_linear_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     # Quantizing activations
     def test_test_input_fake_per_tensor(self):
         size_in = 255
         size_out = 257
-        quant_linear_object = quant_linear.QuantLinear(
-            size_in, size_out, bias=False)
+        quant_linear_object = quant_linear.QuantLinear(size_in, size_out, bias=False)
         quant_linear_object.weight_quantizer.disable()
         test_input = torch.randn(32, size_in)
 
         weight_copy = quant_linear_object.weight.clone()
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         out1 = F.linear(quant_input, weight_copy)
         out2 = quant_linear_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_tensor(self):
         """quantize everything, activations will scaled per tensor in ALL cases"""
         size_in = 255
         size_out = 257
         quant_linear_object = quant_linear.QuantLinear(
-            size_in, size_out, bias=False, quant_desc_weight=tensor_quant.QuantDescriptor())
+            size_in,
+            size_out,
+            bias=False,
+            quant_desc_weight=tensor_quant.QuantDescriptor(),
+        )
         test_input = torch.randn(32, size_in)
 
         weight_copy = quant_linear_object.weight.clone()
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy))
+        )
 
         out1 = F.linear(quant_input, quant_weight)
         out2 = quant_linear_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_tensor_with_bias(self):
         """quantize everything, activations will scaled per tensor in ALL cases"""
         size_in = 255
         size_out = 257
         quant_linear_object = quant_linear.QuantLinear(
-            size_in, size_out, bias=False, quant_desc_weight=tensor_quant.QuantDescriptor())
-        test_input = torch.randn(32, 17, 93, size_in)  # Test input other than 2 dimensional
+            size_in,
+            size_out,
+            bias=False,
+            quant_desc_weight=tensor_quant.QuantDescriptor(),
+        )
+        test_input = torch.randn(
+            32, 17, 93, size_in
+        )  # Test input other than 2 dimensional
 
         weight_copy = quant_linear_object.weight.clone()
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy))
+        )
 
         out1 = F.linear(quant_input, quant_weight, bias=quant_linear_object.bias)
         out2 = quant_linear_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel(self):
         """quantize everything, activations will scaled per tensor in ALL cases"""
         size_in = 255
         size_out = 257
-        quant_linear_object = quant_linear.QuantLinear(size_in, size_out, bias=False,
-                                                       quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_LINEAR_WEIGHT_PER_ROW)
+        quant_linear_object = quant_linear.QuantLinear(
+            size_in,
+            size_out,
+            bias=False,
+            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_LINEAR_WEIGHT_PER_ROW,
+        )
         test_input = torch.randn(32, size_in)
 
         weight_copy = quant_linear_object.weight.clone()
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy,
-                                                      torch.max(torch.abs(weight_copy), dim=1, keepdim=True)[0])
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy), dim=1, keepdim=True)[0]
+        )
 
         out1 = F.linear(quant_input, quant_weight)
         out2 = quant_linear_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel_other_precs(self):
         """Test some precisions other than 8bit."""
@@ -162,7 +207,8 @@ class TestQuantLinear():
             size_out,
             bias=False,
             quant_desc_input=quant_desc_input,
-            quant_desc_weight=quant_desc_weight)
+            quant_desc_weight=quant_desc_weight,
+        )
         weight_quantizer = TensorQuantizer(quant_desc_weight)
         test_input_quantizer = TensorQuantizer(quant_desc_input)
 
@@ -174,7 +220,9 @@ class TestQuantLinear():
 
         out1 = F.linear(quant_input, quant_weight)
         out2 = quant_linear_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_against_unquantized(self):
         """
@@ -192,7 +240,8 @@ class TestQuantLinear():
             size_out,
             bias=True,
             quant_desc_input=tensor_quant.QuantDescriptor(num_bits=16),
-            quant_desc_weight=tensor_quant.QuantDescriptor(num_bits=16, axis=0))
+            quant_desc_weight=tensor_quant.QuantDescriptor(num_bits=16, axis=0),
+        )
 
         # Reset seed. Make sure weight and bias are the same
         torch.manual_seed(1234)
@@ -207,7 +256,11 @@ class TestQuantLinear():
         # Small values which become 0 after quantization lead to large relative errors. rtol and atol could be
         # much smaller without those values
         np.testing.assert_allclose(
-            quant_out_features.detach().cpu().numpy(), out_features.detach().cpu().numpy(), rtol=0.01, atol=1e-4)
+            quant_out_features.detach().cpu().numpy(),
+            out_features.detach().cpu().numpy(),
+            rtol=0.01,
+            atol=1e-4,
+        )
 
     def test_set_default_quant_desc(self):
         quant_linear_layer = quant_linear.QuantLinear(32, 257)
@@ -228,4 +281,4 @@ class TestQuantLinear():
 
     def test_unused_kwargs(self):
         with pytest.raises(TypeError, match="Unused keys"):
-            quant_linear_layer = quant_linear.QuantLinear(32, 257, descriptor='oops')
+            quant_linear_layer = quant_linear.QuantLinear(32, 257, descriptor="oops")

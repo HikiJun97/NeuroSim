@@ -25,14 +25,11 @@ with following modification
 Only LSTM is quantized. Other paths are excluded in __all__
 """
 
-import warnings
-from torch.autograd import NestedIOFunction
-from torch.nn import functional as F
 import torch
-import itertools
-from functools import partial
+from torch.nn import functional as F
 
 __all__ = ["LSTMCell", "RNN"]
+
 
 def RNNReLUCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
     hy = F.relu(F.linear(input, w_ih, b_ih) + F.linear(hidden, w_hh, b_hh))
@@ -44,7 +41,16 @@ def RNNTanhCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
     return hy
 
 
-def LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None, input_quantizer=None, weight_quantizer=None):
+def LSTMCell(
+    input,
+    hidden,
+    w_ih,
+    w_hh,
+    b_ih=None,
+    b_hh=None,
+    input_quantizer=None,
+    weight_quantizer=None,
+):
     """Quantized LSTM Cell
 
     The assumption is at inference time, only one fused gemm will be launched for one time step Weights of 4 gates
@@ -54,9 +60,13 @@ def LSTMCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None, input_quantizer=No
 
     hx, cx = hidden
     if input_quantizer is not None:
-        input, hx = input_quantizer(torch.cat([input, hx], 1)).split([input.size()[1], hx.size()[1]], 1)
+        input, hx = input_quantizer(torch.cat([input, hx], 1)).split(
+            [input.size()[1], hx.size()[1]], 1
+        )
     if weight_quantizer is not None:
-        w_ih, w_hh = weight_quantizer(torch.cat([w_ih, w_hh], 1)).split([w_ih.size()[1], w_hh.size()[1]], 1)
+        w_ih, w_hh = weight_quantizer(torch.cat([w_ih, w_hh], 1)).split(
+            [w_ih.size()[1], w_hh.size()[1]], 1
+        )
     gates = F.linear(input, w_ih, b_ih) + F.linear(hx, w_hh, b_hh)
 
     ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
@@ -87,12 +97,13 @@ def GRUCell(input, hidden, w_ih, w_hh, b_ih=None, b_hh=None):
 
 
 def StackedRNN(inners, num_layers, lstm=False, dropout=0, train=True):
-
     num_directions = len(inners)
     total_layers = num_layers * num_directions
 
-    def forward(input, hidden, weight, batch_sizes, input_quantizers, weight_quantizers):
-        assert(len(weight) == total_layers)
+    def forward(
+        input, hidden, weight, batch_sizes, input_quantizers, weight_quantizers
+    ):
+        assert len(weight) == total_layers
         next_hidden = []
 
         if lstm:
@@ -103,8 +114,14 @@ def StackedRNN(inners, num_layers, lstm=False, dropout=0, train=True):
             for j, inner in enumerate(inners):
                 l = i * num_directions + j
 
-                hy, output = inner(input, hidden[l], weight[l], batch_sizes,
-                                   input_quantizer=input_quantizers[l], weight_quantizer=weight_quantizers[l])
+                hy, output = inner(
+                    input,
+                    hidden[l],
+                    weight[l],
+                    batch_sizes,
+                    input_quantizer=input_quantizers[l],
+                    weight_quantizer=weight_quantizers[l],
+                )
                 next_hidden.append(hy)
                 all_output.append(output)
 
@@ -117,11 +134,12 @@ def StackedRNN(inners, num_layers, lstm=False, dropout=0, train=True):
             next_h, next_c = zip(*next_hidden)
             next_hidden = (
                 torch.cat(next_h, 0).view(total_layers, *next_h[0].size()),
-                torch.cat(next_c, 0).view(total_layers, *next_c[0].size())
+                torch.cat(next_c, 0).view(total_layers, *next_c[0].size()),
             )
         else:
             next_hidden = torch.cat(next_hidden, 0).view(
-                total_layers, *next_hidden[0].size())
+                total_layers, *next_hidden[0].size()
+            )
 
         return next_hidden, input
 
@@ -133,8 +151,13 @@ def Recurrent(inner, reverse=False):
         output = []
         steps = range(input.size(0) - 1, -1, -1) if reverse else range(input.size(0))
         for i in steps:
-            hidden = inner(input[i], hidden, *weight,
-                           input_quantizer=input_quantizer, weight_quantizer=weight_quantizer)
+            hidden = inner(
+                input[i],
+                hidden,
+                *weight,
+                input_quantizer=input_quantizer,
+                weight_quantizer=weight_quantizer,
+            )
             # hack to handle LSTM
             output.append(hidden[0] if isinstance(hidden, tuple) else hidden)
 
@@ -156,7 +179,6 @@ def variable_recurrent_factory(inner, reverse=False):
 
 def VariableRecurrent(inner):
     def forward(input, hidden, weight, batch_sizes, input_quantizer, weight_quantizer):
-
         output = []
         input_offset = 0
         last_batch_size = batch_sizes[0]
@@ -165,7 +187,7 @@ def VariableRecurrent(inner):
         if flat_hidden:
             hidden = (hidden,)
         for batch_size in batch_sizes:
-            step_input = input[input_offset:input_offset + batch_size]
+            step_input = input[input_offset : input_offset + batch_size]
             input_offset += batch_size
 
             dec = last_batch_size - batch_size
@@ -175,11 +197,23 @@ def VariableRecurrent(inner):
             last_batch_size = batch_size
 
             if flat_hidden:
-                hidden = (inner(step_input, hidden[0], *weight,
-                                input_quantizer=input_quantizer, weight_quantizer=weight_quantizer),)
+                hidden = (
+                    inner(
+                        step_input,
+                        hidden[0],
+                        *weight,
+                        input_quantizer=input_quantizer,
+                        weight_quantizer=weight_quantizer,
+                    ),
+                )
             else:
-                hidden = inner(step_input, hidden, *weight,
-                               input_quantizer=input_quantizer, weight_quantizer=weight_quantizer)
+                hidden = inner(
+                    step_input,
+                    hidden,
+                    *weight,
+                    input_quantizer=input_quantizer,
+                    weight_quantizer=weight_quantizer,
+                )
 
             output.append(hidden[0])
         hiddens.append(hidden)
@@ -206,23 +240,37 @@ def VariableRecurrentReverse(inner):
         if flat_hidden:
             hidden = (hidden,)
             initial_hidden = (initial_hidden,)
-        hidden = tuple(h[:batch_sizes[-1]] for h in hidden)
+        hidden = tuple(h[: batch_sizes[-1]] for h in hidden)
         for i in reversed(range(len(batch_sizes))):
             batch_size = batch_sizes[i]
             inc = batch_size - last_batch_size
             if inc > 0:
-                hidden = tuple(torch.cat((h, ih[last_batch_size:batch_size]), 0)
-                               for h, ih in zip(hidden, initial_hidden))
+                hidden = tuple(
+                    torch.cat((h, ih[last_batch_size:batch_size]), 0)
+                    for h, ih in zip(hidden, initial_hidden)
+                )
             last_batch_size = batch_size
-            step_input = input[input_offset - batch_size:input_offset]
+            step_input = input[input_offset - batch_size : input_offset]
             input_offset -= batch_size
 
             if flat_hidden:
-                hidden = (inner(step_input, hidden[0], *weight,
-                                input_quantizer=input_quantizer, weight_quantizer=weight_quantizer),)
+                hidden = (
+                    inner(
+                        step_input,
+                        hidden[0],
+                        *weight,
+                        input_quantizer=input_quantizer,
+                        weight_quantizer=weight_quantizer,
+                    ),
+                )
             else:
-                hidden = inner(step_input, hidden, *weight,
-                               input_quantizer=input_quantizer, weight_quantizer=weight_quantizer)
+                hidden = inner(
+                    step_input,
+                    hidden,
+                    *weight,
+                    input_quantizer=input_quantizer,
+                    weight_quantizer=weight_quantizer,
+                )
             output.append(hidden[0])
 
         output.reverse()
@@ -234,21 +282,31 @@ def VariableRecurrentReverse(inner):
     return forward
 
 
-def AutogradRNN(mode, input_size, hidden_size, num_layers=1, batch_first=False,
-                dropout=0, train=True, bidirectional=False, variable_length=False,
-                dropout_state=None, flat_weight=None,
-                input_quantizers=None, weight_quantizers=None):
-
-    if mode == 'RNN_RELU':
+def AutogradRNN(
+    mode,
+    input_size,
+    hidden_size,
+    num_layers=1,
+    batch_first=False,
+    dropout=0,
+    train=True,
+    bidirectional=False,
+    variable_length=False,
+    dropout_state=None,
+    flat_weight=None,
+    input_quantizers=None,
+    weight_quantizers=None,
+):
+    if mode == "RNN_RELU":
         cell = RNNReLUCell
-    elif mode == 'RNN_TANH':
+    elif mode == "RNN_TANH":
         cell = RNNTanhCell
-    elif mode == 'LSTM':
+    elif mode == "LSTM":
         cell = LSTMCell
-    elif mode == 'GRU':
+    elif mode == "GRU":
         cell = GRUCell
     else:
-        raise Exception('Unknown mode: {}'.format(mode))
+        raise Exception("Unknown mode: {}".format(mode))
 
     rec_factory = variable_recurrent_factory if variable_length else Recurrent
 
@@ -257,17 +315,17 @@ def AutogradRNN(mode, input_size, hidden_size, num_layers=1, batch_first=False,
     else:
         layer = (rec_factory(cell),)
 
-    func = StackedRNN(layer,
-                      num_layers,
-                      (mode == 'LSTM'),
-                      dropout=dropout,
-                      train=train)
+    func = StackedRNN(layer, num_layers, (mode == "LSTM"), dropout=dropout, train=train)
 
-    def forward(input, weight, hidden, batch_sizes, input_quantizers, weight_quantizers):
+    def forward(
+        input, weight, hidden, batch_sizes, input_quantizers, weight_quantizers
+    ):
         if batch_first and not variable_length:
             input = input.transpose(0, 1)
 
-        nexth, output = func(input, hidden, weight, batch_sizes, input_quantizers, weight_quantizers)
+        nexth, output = func(
+            input, hidden, weight, batch_sizes, input_quantizers, weight_quantizers
+        )
 
         if batch_first and not variable_length:
             output = output.transpose(0, 1)
@@ -278,7 +336,6 @@ def AutogradRNN(mode, input_size, hidden_size, num_layers=1, batch_first=False,
 
 
 def RNN(*args, **kwargs):
-
     def forward(input, *fargs, **fkwargs):
         func = AutogradRNN(*args, **kwargs)
         return func(input, *fargs, **fkwargs)

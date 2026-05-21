@@ -17,19 +17,18 @@
 
 
 """Test pytorch_quantization.utils"""
-import pytest
-import numpy as np
 
+import numpy as np
+import pytest
 import torch
 from pytorch_quantization import utils as quant_utils
-from tests.fixtures import verbose
 
 np.random.seed(12345)
 
 # pylint:disable=missing-docstring, no-self-use
 
-class TestQuantUtils():
 
+class TestQuantUtils:
     def test_reduce_amax(self):
         x_np = (np.random.rand(3, 7, 11, 13, 17) - 0.1).astype(np.float32)
         x_torch = torch.tensor(x_np)

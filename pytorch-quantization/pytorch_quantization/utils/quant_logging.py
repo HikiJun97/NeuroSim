@@ -20,6 +20,7 @@
 
 import logging
 
+
 def reset_logger_handler():
     """Remove all handler in root logger"""
     root_logger = logging.getLogger()

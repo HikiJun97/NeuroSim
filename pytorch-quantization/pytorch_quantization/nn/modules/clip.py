@@ -16,14 +16,16 @@
 #
 
 
-"""Implement a clip module as pytorch only has a simple clamp function """
+"""Implement a clip module as pytorch only has a simple clamp function"""
+
 import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 
 from pytorch_quantization.nn import functional as QF
 
-__all__ = ['Clip']
+__all__ = ["Clip"]
+
 
 class Clip(nn.Module):
     """Clip tensor
@@ -38,18 +40,24 @@ class Clip(nn.Module):
         ValueError:
     """
 
-    def __init__(self, clip_value_min, clip_value_max, learn_min=False, learn_max=False):
+    def __init__(
+        self, clip_value_min, clip_value_max, learn_min=False, learn_max=False
+    ):
         super(Clip, self).__init__()
         if learn_min:
             if not isinstance(clip_value_min, float) and clip_value_min.size != 1:
-                raise ValueError("clip_value_min/clip_value_max must be scalar for initilizing learnable range.")
+                raise ValueError(
+                    "clip_value_min/clip_value_max must be scalar for initilizing learnable range."
+                )
             self.clip_value_min = Parameter(torch.tensor(clip_value_min))  # pylint: disable=not-callable
         else:
             self.clip_value_min = clip_value_min
 
         if learn_max:
             if not isinstance(clip_value_max, float) and clip_value_max.size != 1:
-                raise ValueError("clip_value_min/clip_value_max must be scalar for initilizing learnable range.")
+                raise ValueError(
+                    "clip_value_min/clip_value_max must be scalar for initilizing learnable range."
+                )
             self.clip_value_max = Parameter(torch.tensor(clip_value_max))  # pylint: disable=not-callable
         else:
             self.clip_value_max = clip_value_max

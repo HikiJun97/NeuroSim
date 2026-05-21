@@ -17,6 +17,7 @@
 
 
 """Quantized Linear"""
+
 from torch import nn
 from torch.nn import functional as F
 
@@ -25,6 +26,7 @@ from pytorch_quantization import tensor_quant
 from . import _utils
 
 __all__ = ["Linear", "QuantLinear"]
+
 
 class QuantLinear(nn.Linear, _utils.QuantMixin):
     """Quantized version of nn.Linear
@@ -62,7 +64,9 @@ class QuantLinear(nn.Linear, _utils.QuantMixin):
 
     def __init__(self, in_features, out_features, bias=True, **kwargs):
         super(QuantLinear, self).__init__(in_features, out_features, bias)
-        quant_desc_input, quant_desc_weight = _utils.pop_quant_desc_in_kwargs(self.__class__, **kwargs)
+        quant_desc_input, quant_desc_weight = _utils.pop_quant_desc_in_kwargs(
+            self.__class__, **kwargs
+        )
 
         self.init_quantizer(quant_desc_input, quant_desc_weight)
 

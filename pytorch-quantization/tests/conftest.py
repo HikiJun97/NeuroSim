@@ -18,8 +18,12 @@
 
 """local configuration for pytests"""
 
-import pytest
 
 def pytest_addoption(parser):
-    parser.addoption('--data-dir', type=str, dest="data_dir",
-                     default='', help="set dataset dir for tests")
+    parser.addoption(
+        "--data-dir",
+        type=str,
+        dest="data_dir",
+        default="",
+        help="set dataset dir for tests",
+    )

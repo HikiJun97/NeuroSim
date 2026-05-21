@@ -18,23 +18,20 @@
 
 """tests of supportive functions"""
 
-import pytest
 import numpy as np
-
-import torch
-
+import pytest
 import pytorch_quantization.nn.functional as QF
+import torch
 
 np.random.seed(1234)
 torch.manual_seed(1234)
 
 # pylint:disable=missing-docstring, no-self-use
 
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.set_default_tensor_type("torch.cuda.FloatTensor")
 
 
-class TestClip():
-
+class TestClip:
     def test_simple_run(self):
         x_np = np.random.rand(1023).astype(np.float32)
         x_torch = torch.Tensor(x_np)
@@ -64,7 +61,9 @@ class TestClip():
         min_value = np.random.rand(1, 4, 1, 1).astype(np.float32) * 0.1 - 0.2
         max_value = np.random.rand(1, 4, 1, 1).astype(np.float32) * 10 + 0.5
         clip_x_np = np.clip(x_np, min_value, max_value)
-        clip_x_torch = QF.clip(x_torch, torch.tensor(min_value), torch.tensor(max_value))
+        clip_x_torch = QF.clip(
+            x_torch, torch.tensor(min_value), torch.tensor(max_value)
+        )
         np.testing.assert_array_equal(clip_x_torch.cpu().numpy(), clip_x_np)
 
     def test_backward(self):
@@ -86,9 +85,18 @@ class TestClip():
         loss.backward()
 
         np.testing.assert_array_almost_equal(
-            clip_x.grad[x < min_value].sum().cpu().numpy(), min_value.grad.cpu().numpy(), decimal=6)
+            clip_x.grad[x < min_value].sum().cpu().numpy(),
+            min_value.grad.cpu().numpy(),
+            decimal=6,
+        )
         np.testing.assert_array_almost_equal(
-            clip_x.grad[x > max_value].sum().cpu().numpy(), max_value.grad.cpu().numpy(), decimal=6)
+            clip_x.grad[x > max_value].sum().cpu().numpy(),
+            max_value.grad.cpu().numpy(),
+            decimal=6,
+        )
         assert x.grad.cpu()[x.cpu() < min_value.cpu()].sum() == 0
         assert x.grad.cpu()[x.cpu() > max_value.cpu()].sum() == 0
-        assert torch.equal(clip_x.grad[(x > min_value) & (x < max_value)], x.grad[(x > min_value) & (x < max_value)])
+        assert torch.equal(
+            clip_x.grad[(x > min_value) & (x < max_value)],
+            x.grad[(x > min_value) & (x < max_value)],
+        )

@@ -17,25 +17,22 @@
 
 
 """tests of tensor quantizer"""
-import yaml
-import pytest
+
 import numpy as np
-
+import pytest
 import torch
-
 from pytorch_quantization import tensor_quant
-from pytorch_quantization import calib
-from pytorch_quantization.nn.modules import tensor_quantizer
 from pytorch_quantization import utils as quant_utils
+from pytorch_quantization.nn.modules import tensor_quantizer
+
 import tests.utils as test_utils
-from tests.fixtures import verbose
 
 np.random.seed(12345)
 
 # pylint:disable=missing-docstring, no-self-use
 
-class TestTensorQuantizer():
 
+class TestTensorQuantizer:
     def test_simple_run(self):
         """Quantizer calls fake_tensor_quant by default"""
         x = torch.randn(3, 7).cuda()
@@ -43,31 +40,41 @@ class TestTensorQuantizer():
         fn_quant_x = tensor_quant.fake_tensor_quant(x, amax_x)
         quantizer = tensor_quantizer.TensorQuantizer()
         module_quant_x = quantizer(x)
-        np.testing.assert_array_equal(fn_quant_x.cpu().numpy(), module_quant_x.cpu().numpy())
+        np.testing.assert_array_equal(
+            fn_quant_x.cpu().numpy(), module_quant_x.cpu().numpy()
+        )
 
     def test_simple_run_no_fake(self):
         """Quantizer fake_quant=False calls tensor_quant and sets the scale property"""
         x = torch.randn(3, 7).cuda()
         amax_x = torch.max(torch.abs(x))
         fn_quant_x, fn_scale = tensor_quant.tensor_quant(x, amax_x)
-        quantizer = tensor_quantizer.TensorQuantizer(tensor_quant.QuantDescriptor(num_bits=8, fake_quant=False))
+        quantizer = tensor_quantizer.TensorQuantizer(
+            tensor_quant.QuantDescriptor(num_bits=8, fake_quant=False)
+        )
         module_quant_x = quantizer(x)
         module_scale = quantizer.scale
-        np.testing.assert_array_equal(fn_quant_x.cpu().numpy(), module_quant_x.cpu().numpy())
-        np.testing.assert_array_equal(fn_scale.cpu().numpy(), module_scale.cpu().numpy())
+        np.testing.assert_array_equal(
+            fn_quant_x.cpu().numpy(), module_quant_x.cpu().numpy()
+        )
+        np.testing.assert_array_equal(
+            fn_scale.cpu().numpy(), module_scale.cpu().numpy()
+        )
 
     def test_per_tensor_scale(self):
         """Quantizer performs expected quantization"""
         x_np = np.random.rand(1023)
         x_torch = torch.Tensor(x_np)
         quant_x_np = test_utils.quant_np(x_np, np.max(np.abs(x_np)))
-        quantizer = tensor_quantizer.TensorQuantizer(tensor_quant.QuantDescriptor(num_bits=8, fake_quant=False))
+        quantizer = tensor_quantizer.TensorQuantizer(
+            tensor_quant.QuantDescriptor(num_bits=8, fake_quant=False)
+        )
         module_quant_x = quantizer(x_torch)
         np.testing.assert_array_equal(module_quant_x.cpu().numpy(), quant_x_np)
 
     def test_per_channel_scale(self, verbose):
         """Quantizer performs per channel scaling"""
-        x_np = np.random.rand(15, 15, 64, 128).astype('float32')
+        x_np = np.random.rand(15, 15, 64, 128).astype("float32")
         x_torch = torch.Tensor(x_np).cuda()
 
         # Pytorch filter layout seems to be KCRS, reduce max to shape [K, 1, 1, 1] to test per channel scale
@@ -76,7 +83,10 @@ class TestTensorQuantizer():
 
         quant_x_np = test_utils.quant_np(x_np, amax_x_np)
         quantizer = tensor_quantizer.TensorQuantizer(
-            tensor_quant.QuantDescriptor(num_bits=8, axis=(0), fake_quant=False, scale_amax=0.7))
+            tensor_quant.QuantDescriptor(
+                num_bits=8, axis=(0), fake_quant=False, scale_amax=0.7
+            )
+        )
         quantizer.cuda()
         module_quant_x = quantizer(x_torch)
 
@@ -98,8 +108,9 @@ class TestTensorQuantizer():
         amax = 0.5
         quant_x_np = test_utils.quant_np(x_np, 0.5, fake=True)
         quantizer = tensor_quantizer.TensorQuantizer(
-            tensor_quant.QuantDescriptor(num_bits=8, amax=amax, learn_amax=True)).cuda()
-        assert hasattr(quantizer, 'clip')
+            tensor_quant.QuantDescriptor(num_bits=8, amax=amax, learn_amax=True)
+        ).cuda()
+        assert hasattr(quantizer, "clip")
         module_quant_x = quantizer(x_torch)
         np.testing.assert_array_equal(module_quant_x.cpu().detach().numpy(), quant_x_np)
 
@@ -110,8 +121,11 @@ class TestTensorQuantizer():
         amax = 0.5
         clip_x_np = np.clip(x_np, -amax, amax)
         quantizer = tensor_quantizer.TensorQuantizer(
-            tensor_quant.QuantDescriptor(amax=amax, learn_amax=True), if_quant=False, if_clip=True).cuda()
-        assert hasattr(quantizer, 'clip')
+            tensor_quant.QuantDescriptor(amax=amax, learn_amax=True),
+            if_quant=False,
+            if_clip=True,
+        ).cuda()
+        assert hasattr(quantizer, "clip")
         module_clip_x = quantizer(x_torch)
         np.testing.assert_array_equal(module_clip_x.cpu().detach().numpy(), clip_x_np)
 
@@ -122,7 +136,8 @@ class TestTensorQuantizer():
         scale_amax = 0.9
         quant_x_np = test_utils.quant_np(x_np, amax * scale_amax, fake=True)
         quantizer = tensor_quantizer.TensorQuantizer(
-            tensor_quant.QuantDescriptor(num_bits=8, amax=amax, scale_amax=scale_amax)).cuda()
+            tensor_quant.QuantDescriptor(num_bits=8, amax=amax, scale_amax=scale_amax)
+        ).cuda()
         module_quant_x = quantizer(x_torch)
         np.testing.assert_array_equal(module_quant_x.cpu().detach().numpy(), quant_x_np)
 
@@ -145,7 +160,9 @@ class TestTensorQuantizer():
 
         # copy state
         quantizer1.load_state_dict(quantizer1.state_dict())
-        np.testing.assert_array_equal(quantizer1.amax.detach().cpu().numpy(), quant_desc1.amax)
+        np.testing.assert_array_equal(
+            quantizer1.amax.detach().cpu().numpy(), quant_desc1.amax
+        )
 
     def test_properties(self):
         quant_desc1 = tensor_quant.QuantDescriptor(amax=3.14)
@@ -153,8 +170,10 @@ class TestTensorQuantizer():
         quantizer1.amax = 0.577
 
         assert quantizer1.amax.detach().cpu().numpy() == np.float32(0.577)
-        np.testing.assert_array_equal(quantizer1.amax.detach().cpu().numpy(), quantizer1.amax)
-        assert quantizer1.step_size == 0.577 / 127.
+        np.testing.assert_array_equal(
+            quantizer1.amax.detach().cpu().numpy(), quantizer1.amax
+        )
+        assert quantizer1.step_size == 0.577 / 127.0
 
         quant_desc2 = tensor_quant.QuantDescriptor()
         quantizer2 = tensor_quantizer.TensorQuantizer(quant_desc2)
@@ -168,7 +187,9 @@ class TestTensorQuantizer():
 
     def test_init_calib(self):
         quant_desc2 = tensor_quant.QuantDescriptor(axis=(0, 1))
-        quantizer2 = tensor_quantizer.TensorQuantizer(quant_desc2, if_calib=True, if_quant=False).cuda()
+        quantizer2 = tensor_quantizer.TensorQuantizer(
+            quant_desc2, if_calib=True, if_quant=False
+        ).cuda()
 
         x_2 = torch.rand(127, 63, 7, 7).cuda()
         quantizer2(x_2)
@@ -198,8 +219,11 @@ class TestTensorQuantizer():
 
         global_amax = torch.max(
             quant_utils.reduce_amax(x_1, axis=reduce_axis, keepdims=True),
-            quant_utils.reduce_amax(x_2, axis=reduce_axis, keepdims=True))
-        test_utils.compare(quantizer1._calibrator.compute_amax(), global_amax, atol=0, rtol=0, ctol=0)
+            quant_utils.reduce_amax(x_2, axis=reduce_axis, keepdims=True),
+        )
+        test_utils.compare(
+            quantizer1._calibrator.compute_amax(), global_amax, atol=0, rtol=0, ctol=0
+        )
 
         quantizer1.load_calib_amax()
         test_utils.compare(quantizer1.amax, global_amax, atol=0, rtol=0, ctol=0)
@@ -212,13 +236,27 @@ class TestTensorQuantizer():
 
         quantizer2.load_calib_amax()
         quantizer2.init_learn_amax()
-        test_utils.compare(quantizer2.clip.clip_value_min, -torch.max(global_amax), atol=0, rtol=0, ctol=0)
-        test_utils.compare(quantizer2.clip.clip_value_max, torch.max(global_amax), atol=0, rtol=0, ctol=0)
+        test_utils.compare(
+            quantizer2.clip.clip_value_min,
+            -torch.max(global_amax),
+            atol=0,
+            rtol=0,
+            ctol=0,
+        )
+        test_utils.compare(
+            quantizer2.clip.clip_value_max,
+            torch.max(global_amax),
+            atol=0,
+            rtol=0,
+            ctol=0,
+        )
 
     def test_entropy_and_percentile_calib(self):
         """Don't really have a good way to test it."""
-        quant_desc1 = tensor_quant.QuantDescriptor(calib_method='histogram')
-        quantizer1 = tensor_quantizer.TensorQuantizer(quant_desc1, if_calib=True, if_quant=False).cuda()
+        quant_desc1 = tensor_quant.QuantDescriptor(calib_method="histogram")
+        quantizer1 = tensor_quantizer.TensorQuantizer(
+            quant_desc1, if_calib=True, if_quant=False
+        ).cuda()
 
         x_1 = torch.rand(3, 63, 7, 7).cuda()
         x_2 = torch.rand(3, 63, 7, 7).cuda()
@@ -226,15 +264,26 @@ class TestTensorQuantizer():
         quantizer1(x_2)
 
         quantizer1.load_calib_amax("entropy")
-        test_utils.compare(quantizer1._calibrator.compute_amax("entropy"), quantizer1.amax, atol=0, rtol=0, ctol=0)
+        test_utils.compare(
+            quantizer1._calibrator.compute_amax("entropy"),
+            quantizer1.amax,
+            atol=0,
+            rtol=0,
+            ctol=0,
+        )
         quantizer1._calibrator.reset()
 
         quantizer1(x_1)
         quantizer1(x_2)
 
         quantizer1.load_calib_amax("percentile", percentile=99.99)
-        test_utils.compare(quantizer1._calibrator.compute_amax(
-            "percentile", percentile=99.99), quantizer1.amax, atol=0, rtol=0, ctol=0)
+        test_utils.compare(
+            quantizer1._calibrator.compute_amax("percentile", percentile=99.99),
+            quantizer1.amax,
+            atol=0,
+            rtol=0,
+            ctol=0,
+        )
 
     def test_setters(self):
         quantizer = tensor_quantizer.TensorQuantizer()

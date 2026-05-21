@@ -17,17 +17,17 @@
 
 
 """Basic tensor quantization functions"""
+
 import numpy as np
-import yaml
-
-from absl import logging
-
 import torch
+import yaml
+from absl import logging
 from torch.autograd import Function
 
 from pytorch_quantization import cuda_ext
 
-class ScaledQuantDescriptor():
+
+class ScaledQuantDescriptor:
     """Supportive descriptor of quantization
 
     Describe how a tensor should be quantized. A QuantDescriptor and a tensor defines a quantized tensor.
@@ -70,39 +70,53 @@ class ScaledQuantDescriptor():
 
     def __init__(self, num_bits=8, name=None, **kwargs):
         if not isinstance(num_bits, int):
-            raise TypeError("num_bits must be an integer, not {}.".format(type(num_bits)))
+            raise TypeError(
+                "num_bits must be an integer, not {}.".format(type(num_bits))
+            )
         if num_bits < 0:
             raise ValueError("num_bits must be >= 0, not {}.".format(num_bits))
         if num_bits == 0:
-            logging.error("num_bits is 0. This will result in the tensor being quantized to all zeros."
-                          " This mode should only be used for debugging purposes.")
+            logging.error(
+                "num_bits is 0. This will result in the tensor being quantized to all zeros."
+                " This mode should only be used for debugging purposes."
+            )
         self._num_bits = num_bits
         if not isinstance(name, str) and name is not None:
             raise TypeError("name must be a string or None, not {}.".format(type(name)))
         self._name = name
 
-        self._fake_quant = kwargs.pop('fake_quant', True)
-        self._axis = kwargs.pop('axis', None)
+        self._fake_quant = kwargs.pop("fake_quant", True)
+        self._axis = kwargs.pop("axis", None)
         if self._axis is not None:
-            logging.debug("Meaning of axis has changed since v2.0. Make sure to update.")
-        self._learn_amax = kwargs.pop('learn_amax', False)
+            logging.debug(
+                "Meaning of axis has changed since v2.0. Make sure to update."
+            )
+        self._learn_amax = kwargs.pop("learn_amax", False)
         if self._learn_amax and self._axis is not None:
             raise TypeError(
-                "axis is ignored and must be None when learn_amax is true, got {}.".format(type(self._axis)))
-        amax = kwargs.pop('amax', None)
+                "axis is ignored and must be None when learn_amax is true, got {}.".format(
+                    type(self._axis)
+                )
+            )
+        amax = kwargs.pop("amax", None)
         if amax is not None:
-            if not isinstance(amax, float) and not isinstance(
-                    amax, list) and not isinstance(amax, np.ndarray):
-                raise TypeError("amax must be float, list or ndarray, not {}".format(type(amax)))
+            if (
+                not isinstance(amax, float)
+                and not isinstance(amax, list)
+                and not isinstance(amax, np.ndarray)
+            ):
+                raise TypeError(
+                    "amax must be float, list or ndarray, not {}".format(type(amax))
+                )
             # Make it single precision array
             self._amax = np.array(amax, dtype=np.float32)
         else:
             self._amax = amax
 
-        self._scale_amax = kwargs.pop('scale_amax', None)
-        self._calib_method = kwargs.pop('calib_method', "max")
-        self._unsigned = kwargs.pop('unsigned', False)
-        self._narrow_range = kwargs.pop('narrow_range', False)
+        self._scale_amax = kwargs.pop("scale_amax", None)
+        self._calib_method = kwargs.pop("calib_method", "max")
+        self._unsigned = kwargs.pop("unsigned", False)
+        self._narrow_range = kwargs.pop("narrow_range", False)
 
         if kwargs:
             raise TypeError("Unused keys: {}".format(kwargs.keys()))
@@ -147,16 +161,22 @@ class ScaledQuantDescriptor():
     @property
     def narrow_range(self):
         return self._narrow_range
+
     # pylint:enable=missing-docstring
 
     def __str__(self):
-        s = (self._name + ': ') if self._name is not None else 'QuantDescriptor'
+        s = (self._name + ": ") if self._name is not None else "QuantDescriptor"
         s += "({}{}bit".format("unsigned " if self._unsigned else "", self._num_bits)
         s += " fake" if self._fake_quant else " real"
         s += " axis={}".format(self._axis if self._axis is not None else " per-tensor")
         if isinstance(self._amax, torch.Tensor):
-            s += " amax={}".format(np.array2string(self._amax.cpu().numpy().flatten(), edgeitems=1,
-                                                   formatter={'all': "{:.2e}".format}))
+            s += " amax={}".format(
+                np.array2string(
+                    self._amax.cpu().numpy().flatten(),
+                    edgeitems=1,
+                    formatter={"all": "{:.2e}".format},
+                )
+            )
         elif self._amax is not None:
             s += " amax={_amax}"
             s += " full_range"
@@ -179,21 +199,21 @@ class ScaledQuantDescriptor():
         key. Construct a instance by dict returned by this method should get exactly the same instance.
         """
         obj_dict = {}
-        obj_dict['num_bits'] = self._num_bits
-        obj_dict['name'] = self._name
+        obj_dict["num_bits"] = self._num_bits
+        obj_dict["name"] = self._name
 
         if not self._fake_quant:
-            obj_dict['fake_quant'] = self._fake_quant
+            obj_dict["fake_quant"] = self._fake_quant
         if self._axis is not None:
-            obj_dict['axis'] = self._axis
+            obj_dict["axis"] = self._axis
         if self._amax is not None:
-            obj_dict['amax'] = self._amax.tolist()
+            obj_dict["amax"] = self._amax.tolist()
         if self._scale_amax is not None:
-            obj_dict['scale_amax'] = self._scale_amax
+            obj_dict["scale_amax"] = self._scale_amax
         if self._learn_amax:
-            obj_dict['learn_amax'] = self._learn_amax
+            obj_dict["learn_amax"] = self._learn_amax
         if self._unsigned:
-            obj_dict['unsigned'] = self._unsigned
+            obj_dict["unsigned"] = self._unsigned
 
         return obj_dict
 
@@ -204,7 +224,7 @@ class ScaledQuantDescriptor():
         obj_dict = self.dict()
 
         if "axis" in obj_dict:
-            obj_dict['axis'] = list(obj_dict['axis'])
+            obj_dict["axis"] = list(obj_dict["axis"])
         return yaml.dump(obj_dict, width=120)
 
     @classmethod
@@ -212,12 +232,13 @@ class ScaledQuantDescriptor():
         """Create descriptor from yaml str"""
         obj_dict = yaml.safe_load(yaml_str)
 
-        if 'axis' in obj_dict:
-            obj_dict['axis'] = tuple(obj_dict['axis'])
+        if "axis" in obj_dict:
+            obj_dict["axis"] = tuple(obj_dict["axis"])
 
         quant_desc = cls(**obj_dict)
 
         return quant_desc
+
 
 QuantDescriptor = ScaledQuantDescriptor
 
@@ -228,15 +249,23 @@ QUANT_DESC_8BIT_CONV1D_WEIGHT_PER_CHANNEL = QuantDescriptor(num_bits=8, axis=(0)
 QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL = QuantDescriptor(num_bits=8, axis=(0))
 QUANT_DESC_8BIT_CONV3D_WEIGHT_PER_CHANNEL = QuantDescriptor(num_bits=8, axis=(0))
 QUANT_DESC_8BIT_LINEAR_WEIGHT_PER_ROW = QuantDescriptor(num_bits=8, axis=(0))
-QUANT_DESC_8BIT_CONVTRANSPOSE1D_WEIGHT_PER_CHANNEL = QuantDescriptor(num_bits=8, axis=(0))
-QUANT_DESC_8BIT_CONVTRANSPOSE2D_WEIGHT_PER_CHANNEL = QuantDescriptor(num_bits=8, axis=(0))
-QUANT_DESC_8BIT_CONVTRANSPOSE3D_WEIGHT_PER_CHANNEL = QuantDescriptor(num_bits=8, axis=(0))
+QUANT_DESC_8BIT_CONVTRANSPOSE1D_WEIGHT_PER_CHANNEL = QuantDescriptor(
+    num_bits=8, axis=(0)
+)
+QUANT_DESC_8BIT_CONVTRANSPOSE2D_WEIGHT_PER_CHANNEL = QuantDescriptor(
+    num_bits=8, axis=(0)
+)
+QUANT_DESC_8BIT_CONVTRANSPOSE3D_WEIGHT_PER_CHANNEL = QuantDescriptor(
+    num_bits=8, axis=(0)
+)
+
 
 @torch.jit.script
 def _fake_tensor_quant_backward(inputs, amax, grad_outputs):
     zero = grad_outputs.new_zeros(1)
     grad_inputs = torch.where(inputs.abs() <= amax, grad_outputs, zero)
     return grad_inputs
+
 
 class FakeTensorQuantFunction(Function):
     """Fake version of TensorQuantFunction use CUDA extension"""
@@ -247,7 +276,9 @@ class FakeTensorQuantFunction(Function):
 
         def legacy_quant_func():
             # The LegacyFakeTensorQuantFunction support cpu and amax with any shape that can be broadcasted to inputs.
-            outputs, scale = _tensor_quant(inputs, amax, num_bits, unsigned, narrow_range)
+            outputs, scale = _tensor_quant(
+                inputs, amax, num_bits, unsigned, narrow_range
+            )
             return outputs / scale.to(inputs.dtype)
 
         if not inputs.is_cuda:
@@ -255,13 +286,16 @@ class FakeTensorQuantFunction(Function):
         else:
             try:
                 if amax.numel() == 1:
-                    outputs = cuda_ext.fake_tensor_quant(inputs, amax, num_bits, unsigned, narrow_range)
+                    outputs = cuda_ext.fake_tensor_quant(
+                        inputs, amax, num_bits, unsigned, narrow_range
+                    )
                 else:
                     axis = amax.shape.index(amax.numel())
 
-                    outputs = cuda_ext.fake_tensor_quant_with_axis(inputs, amax.squeeze(), axis, num_bits, unsigned,
-                                                                   narrow_range)
-            except (RuntimeError, ValueError) as error:
+                    outputs = cuda_ext.fake_tensor_quant_with_axis(
+                        inputs, amax.squeeze(), axis, num_bits, unsigned, narrow_range
+                    )
+            except (RuntimeError, ValueError):
                 outputs = legacy_quant_func()
 
         return outputs
@@ -269,7 +303,13 @@ class FakeTensorQuantFunction(Function):
     @staticmethod
     def backward(ctx, grad_outputs):
         inputs, amax = ctx.saved_tensors
-        return _fake_tensor_quant_backward(inputs, amax, grad_outputs), None, None, None, None
+        return (
+            _fake_tensor_quant_backward(inputs, amax, grad_outputs),
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 class TensorQuantFunction(Function):
@@ -331,7 +371,9 @@ class TensorQuantFunction(Function):
             grad_inputs: A tensor of gradient.
         """
         inputs, amax = ctx.saved_tensors
-        zero = grad_outputs.new_zeros(1) # create a zero tensor with the same type and device
+        zero = grad_outputs.new_zeros(
+            1
+        )  # create a zero tensor with the same type and device
         grad_inputs = torch.where(inputs.abs() <= amax, grad_outputs, zero)
         return grad_inputs, None, None, None, None
 
@@ -354,17 +396,23 @@ class LegacyFakeTensorQuantFunction(Function):
         grad_inputs = torch.where(inputs.abs() <= amax, grad_outputs, zero)
         return grad_inputs, None, None, None, None
 
+
 def _tensor_quant(inputs, amax, num_bits=8, unsigned=False, narrow_range=True):
     """Shared function body between TensorQuantFunction and FakeTensorQuantFunction"""
-        # Fine scale, per channel scale will be handled by broadcasting, which could be tricky. Pop a warning.
+    # Fine scale, per channel scale will be handled by broadcasting, which could be tricky. Pop a warning.
     if isinstance(amax, torch.Tensor) and inputs.dim() != amax.dim():
-        logging.debug("amax %s has different shape than inputs %s. Make sure broadcast works as expected!",
-                      amax.size(), inputs.size())
+        logging.debug(
+            "amax %s has different shape than inputs %s. Make sure broadcast works as expected!",
+            amax.size(),
+            inputs.size(),
+        )
 
-    logging.debug("{} bits quantization on shape {} tensor.".format(num_bits, inputs.size()))
+    logging.debug(
+        "{} bits quantization on shape {} tensor.".format(num_bits, inputs.size())
+    )
 
     if unsigned:
-        if inputs.min() < 0.:
+        if inputs.min() < 0.0:
             raise TypeError("Negative values encountered in unsigned quantization.")
 
     # Computation must be in FP32 to prevent potential over flow.
@@ -378,7 +426,9 @@ def _tensor_quant(inputs, amax, num_bits=8, unsigned=False, narrow_range=True):
     if min_amax < 0:
         raise ValueError("Negative values in amax")
 
-    max_bound = torch.tensor((2.0**(num_bits - 1 + int(unsigned))) - 1.0, device=amax.device)
+    max_bound = torch.tensor(
+        (2.0 ** (num_bits - 1 + int(unsigned))) - 1.0, device=amax.device
+    )
     if unsigned:
         min_bound = 0
     elif narrow_range:
@@ -387,20 +437,23 @@ def _tensor_quant(inputs, amax, num_bits=8, unsigned=False, narrow_range=True):
         min_bound = -max_bound - 1
     scale = max_bound / amax
 
-    epsilon = 1. / (1<<24)
+    epsilon = 1.0 / (1 << 24)
     if min_amax <= epsilon:  # Treat amax smaller than minimum representable of fp16 0
-        zero_amax_mask = (amax <= epsilon)
+        zero_amax_mask = amax <= epsilon
         scale[zero_amax_mask] = 0  # Value quantized with amax=0 should all be 0
 
     outputs = torch.clamp((inputs * scale).round_(), min_bound, max_bound)
 
     if min_amax <= epsilon:
-        scale[zero_amax_mask] = 1.  # Return 1 makes more sense for values quantized to 0 with amax=0
+        scale[zero_amax_mask] = (
+            1.0  # Return 1 makes more sense for values quantized to 0 with amax=0
+        )
 
     if input_dtype == torch.half:
         outputs = outputs.half()
 
     return outputs, scale
+
 
 class FakeAffineTensorQuantFunction(Function):
     """Fake version of affine quantization
@@ -429,13 +482,15 @@ class FakeAffineTensorQuantFunction(Function):
         Returns:
             outputs: A Tensor of type output_dtype
         """
-        logging.debug("{} bits quantization on shape {} tensor.".format(num_bits, inputs.size()))
+        logging.debug(
+            "{} bits quantization on shape {} tensor.".format(num_bits, inputs.size())
+        )
         ctx.save_for_backward(inputs, min_range, max_range)
 
         step_size = (max_range - min_range) / (2.0**num_bits - 1)
 
-        min_bound = -2.0**(num_bits - 1)
-        max_bound = 2.0**(num_bits - 1) - 1
+        min_bound = -(2.0 ** (num_bits - 1))
+        max_bound = 2.0 ** (num_bits - 1) - 1
 
         quant_zero = torch.round(min_range / step_size) - min_bound
         quantized = torch.round(inputs / step_size) - quant_zero
@@ -458,7 +513,9 @@ class FakeAffineTensorQuantFunction(Function):
 
         inputs, min_range, max_range = ctx.saved_tensors
         zero = grad_outputs.new_zeros(1)
-        grad_inputs = torch.where((inputs <= max_range)*(inputs >= min_range), grad_outputs, zero)
+        grad_inputs = torch.where(
+            (inputs <= max_range) * (inputs >= min_range), grad_outputs, zero
+        )
         return grad_inputs, None, None, None
 
 

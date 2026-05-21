@@ -24,6 +24,7 @@ import torch.nn.functional as F
 from pytorch_quantization.nn import QuantConv2d, QuantLinear
 from pytorch_quantization.tensor_quant import QuantDescriptor
 
+
 class LeNet(nn.Module):
     def __init__(self, **kwargs):
         super(LeNet, self).__init__()
@@ -59,11 +60,16 @@ class QuantLeNet(nn.Module):
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
 
+
 @pytest.fixture
 def resnet18():
     import torchvision
+
     return torchvision.models.resnet18()
+
 
 @pytest.fixture
 def quant_lenet():
-    return QuantLeNet(quant_desc_input=QuantDescriptor(), quant_desc_weight=QuantDescriptor())
+    return QuantLeNet(
+        quant_desc_input=QuantDescriptor(), quant_desc_weight=QuantDescriptor()
+    )

@@ -22,6 +22,7 @@ Follow numpy fashion, which is more generic as pytorch's
 
 import torch
 
+
 def reduce_amax(input, axis=None, keepdims=True):
     """Compute the absolute maximum value of a tensor.
 

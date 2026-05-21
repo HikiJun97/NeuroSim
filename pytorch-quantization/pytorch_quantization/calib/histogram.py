@@ -17,20 +17,21 @@
 
 
 """Histogram based calibrators"""
+
 from collections import Counter
+
 import numpy as np
+import torch
+from absl import logging
 from scipy.stats import entropy
 
-from absl import logging
-
-import torch
-
-from pytorch_quantization.calib.calibrator import _Calibrator
-from pytorch_quantization.tensor_quant import fake_tensor_quant
 from pytorch_quantization import nn as quant_nn
 from pytorch_quantization import utils as quant_utils
+from pytorch_quantization.calib.calibrator import _Calibrator
+from pytorch_quantization.tensor_quant import fake_tensor_quant
 
 __all__ = ["HistogramCalibrator", "calibrate_weights"]
+
 
 class HistogramCalibrator(_Calibrator):
     """Unified histogram calibrator
@@ -48,7 +49,17 @@ class HistogramCalibrator(_Calibrator):
         torch_hist: A boolean. If True, collect histogram by torch.histc instead of np.histogram. If input tensor
             is on GPU, histc will also be running on GPU. Default True.
     """
-    def __init__(self, num_bits, axis, unsigned, num_bins=2048, grow_method=None, skip_zeros=False, torch_hist=True):
+
+    def __init__(
+        self,
+        num_bits,
+        axis,
+        unsigned,
+        num_bins=2048,
+        grow_method=None,
+        skip_zeros=False,
+        torch_hist=True,
+    ):
         super(HistogramCalibrator, self).__init__(num_bits, axis, unsigned)
         self._num_bins = num_bins
         self._skip_zeros = skip_zeros
@@ -59,19 +70,24 @@ class HistogramCalibrator(_Calibrator):
         self._torch_hist = torch_hist
 
         if axis is not None:
-            raise NotImplementedError("Calibrator histogram collection only supports per tensor scaling")
+            raise NotImplementedError(
+                "Calibrator histogram collection only supports per tensor scaling"
+            )
 
         if grow_method is not None:
             logging.warning("grow_method is deprecated. Got %s, ingored!", grow_method)
 
     def collect(self, x):
         """Collect histogram"""
-        if torch.min(x) < 0.:
+        if torch.min(x) < 0.0:
             logging.log_first_n(
                 logging.INFO,
-                ("Calibrator encountered negative values. It shouldn't happen after ReLU. "
-                 "Make sure this is the right tensor to calibrate."),
-                1)
+                (
+                    "Calibrator encountered negative values. It shouldn't happen after ReLU. "
+                    "Make sure this is the right tensor to calibrate."
+                ),
+                1,
+            )
             x = x.abs()
 
         x = x.float()
@@ -84,17 +100,25 @@ class HistogramCalibrator(_Calibrator):
 
             if self._calib_bin_edges is None and self._calib_hist is None:
                 # first time it uses num_bins to compute histogram.
-                self._calib_hist, self._calib_bin_edges = np.histogram(x_np, bins=self._num_bins)
+                self._calib_hist, self._calib_bin_edges = np.histogram(
+                    x_np, bins=self._num_bins
+                )
             else:
                 temp_amax = np.max(x_np)
                 if temp_amax > self._calib_bin_edges[-1]:
                     # increase the number of bins
                     width = self._calib_bin_edges[1] - self._calib_bin_edges[0]
                     # NOTE: np.arange may create an extra bin after the one containing temp_amax
-                    new_bin_edges = np.arange(self._calib_bin_edges[-1] + width, temp_amax + width, width)
-                    self._calib_bin_edges = np.hstack((self._calib_bin_edges, new_bin_edges))
-                hist, self._calib_bin_edges = np.histogram(x_np, bins=self._calib_bin_edges)
-                hist[:len(self._calib_hist)] += self._calib_hist
+                    new_bin_edges = np.arange(
+                        self._calib_bin_edges[-1] + width, temp_amax + width, width
+                    )
+                    self._calib_bin_edges = np.hstack(
+                        (self._calib_bin_edges, new_bin_edges)
+                    )
+                hist, self._calib_bin_edges = np.histogram(
+                    x_np, bins=self._calib_bin_edges
+                )
+                hist[: len(self._calib_hist)] += self._calib_hist
                 self._calib_hist = hist
         else:
             # This branch of code is designed to match numpy version as close as possible
@@ -105,18 +129,25 @@ class HistogramCalibrator(_Calibrator):
                 # Because we collect histogram on absolute value, setting min=0 simplifying the rare case where
                 # minimum value is not exactly 0 and first batch collected has larger min value than later batches
                 x_max = x.max()
-                if (x_max == 0): return
+                if x_max == 0:
+                    return
                 if self._calib_bin_edges is None and self._calib_hist is None:
-                    self._calib_hist = torch.histc(x, bins=self._num_bins, min=0, max=x_max)
+                    self._calib_hist = torch.histc(
+                        x, bins=self._num_bins, min=0, max=x_max
+                    )
                     self._calib_bin_edges = torch.linspace(0, x_max, self._num_bins + 1)
                 else:
                     if x_max > self._calib_bin_edges[-1]:
                         width = self._calib_bin_edges[1] - self._calib_bin_edges[0]
                         self._num_bins = int((x_max / width).ceil().item())
-                        self._calib_bin_edges = torch.arange(0, x_max + width, width, device=x.device)
+                        self._calib_bin_edges = torch.arange(
+                            0, x_max + width, width, device=x.device
+                        )
 
-                    hist = torch.histc(x, bins=self._num_bins, min=0, max=self._calib_bin_edges[-1])
-                    hist[:self._calib_hist.numel()] += self._calib_hist
+                    hist = torch.histc(
+                        x, bins=self._num_bins, min=0, max=self._calib_bin_edges[-1]
+                    )
+                    hist[: self._calib_hist.numel()] += self._calib_hist
                     self._calib_hist = hist
 
     def reset(self):
@@ -125,7 +156,13 @@ class HistogramCalibrator(_Calibrator):
         self._calib_hist = None
 
     def compute_amax(
-            self, method: str, *, stride: int = 1, start_bin: int = 128, percentile: float = 99.99):
+        self,
+        method: str,
+        *,
+        stride: int = 1,
+        start_bin: int = 128,
+        percentile: float = 99.99,
+    ):
         """Compute the amax from the collected histogram
 
         Args:
@@ -146,14 +183,28 @@ class HistogramCalibrator(_Calibrator):
             calib_hist = self._calib_hist
             calib_bin_edges = self._calib_bin_edges
 
-        if method == 'entropy':
+        if method == "entropy":
             calib_amax = _compute_amax_entropy(
-                calib_hist, calib_bin_edges, self._num_bits, self._unsigned, stride, start_bin)
-        elif method == 'mse':
+                calib_hist,
+                calib_bin_edges,
+                self._num_bits,
+                self._unsigned,
+                stride,
+                start_bin,
+            )
+        elif method == "mse":
             calib_amax = _compute_amax_mse(
-                calib_hist, calib_bin_edges, self._num_bits, self._unsigned, stride, start_bin)
-        elif method == 'percentile':
-            calib_amax = _compute_amax_percentile(calib_hist, calib_bin_edges, percentile)
+                calib_hist,
+                calib_bin_edges,
+                self._num_bits,
+                self._unsigned,
+                stride,
+                start_bin,
+            )
+        elif method == "percentile":
+            calib_amax = _compute_amax_percentile(
+                calib_hist, calib_bin_edges, percentile
+            )
         else:
             raise TypeError("Unknown calibration method {}".format(method))
 
@@ -166,7 +217,10 @@ class HistogramCalibrator(_Calibrator):
             bin_edge_str = "None"
         else:
             bin_edge_str = "[{:.3f}, ..., {:.3f}]({})".format(
-                self._calib_bin_edges[0], self._calib_bin_edges[-1], len(self._calib_bin_edges))
+                self._calib_bin_edges[0],
+                self._calib_bin_edges[-1],
+                len(self._calib_bin_edges),
+            )
         s += "calib_bin_edges={})".format(bin_edge_str)
         return s
 
@@ -176,13 +230,16 @@ class HistogramCalibrator(_Calibrator):
         s += " calib_bin_edges={_calib_bin_edges}"
         s += " calib_hist={_calib_hist})"
         return s.format(**self.__dict__)
+
     # pylint:enable=missing-docstring
 
 
 # Ideally, we want to decouple collector (collect histogram) and calibrator (compute amax) as opposed to
 # the current calibrator design. The following compute amax functions are broken out from the calibrator
 # as first step towards there.
-def _compute_amax_entropy(calib_hist, calib_bin_edges, num_bits, unsigned, stride=1, start_bin=128):
+def _compute_amax_entropy(
+    calib_hist, calib_bin_edges, num_bits, unsigned, stride=1, start_bin=128
+):
     """Returns amax that minimizes KL-Divergence of the collected histogram"""
 
     # If calibrator hasn't collected any data, return none
@@ -234,13 +291,19 @@ def _compute_amax_entropy(calib_hist, calib_bin_edges, num_bits, unsigned, strid
         total_counts_new = np.sum(new_density) + np.sum(bins[i:])
         _normalize_distr(new_density)
 
-        reference_density = np.array(bins[:len(digitized_space)])
+        reference_density = np.array(bins[: len(digitized_space)])
         reference_density[-1] += np.sum(bins[i:])
 
         total_counts_old = np.sum(reference_density)
-        if round(total_counts_new) != total_data or round(total_counts_old) != total_data:
-            raise RuntimeError("Count mismatch! total_counts_new={}, total_counts_old={}, total_data={}".format(
-                total_counts_new, total_counts_old, total_data))
+        if (
+            round(total_counts_new) != total_data
+            or round(total_counts_old) != total_data
+        ):
+            raise RuntimeError(
+                "Count mismatch! total_counts_new={}, total_counts_old={}, total_data={}".format(
+                    total_counts_new, total_counts_old, total_data
+                )
+            )
 
         _normalize_distr(reference_density)
 
@@ -252,11 +315,14 @@ def _compute_amax_entropy(calib_hist, calib_bin_edges, num_bits, unsigned, strid
     logging.debug("divergences={}".format(divergences))
     last_argmin = len(divergences) - 1 - np.argmin(divergences[::-1])
     calib_amax = calib_bin_edges[last_argmin * stride + starting]
-    calib_amax = torch.tensor(calib_amax.item()) #pylint: disable=not-callable
+    calib_amax = torch.tensor(calib_amax.item())  # pylint: disable=not-callable
 
     return calib_amax
 
-def _compute_amax_mse(calib_hist, calib_bin_edges, num_bits, unsigned, stride=1, start_bin=128):
+
+def _compute_amax_mse(
+    calib_hist, calib_bin_edges, num_bits, unsigned, stride=1, start_bin=128
+):
     """Returns amax that minimizes MSE of the collected histogram"""
 
     # If calibrator hasn't collected any data, return none
@@ -271,11 +337,10 @@ def _compute_amax_mse(calib_hist, calib_bin_edges, num_bits, unsigned, stride=1,
     arguments = []
 
     for i in range(start_bin, len(centers), stride):
-
         amax = centers[i]
         quant_centers = fake_tensor_quant(centers, amax, num_bits, unsigned)
 
-        mse = ((quant_centers - centers)**2 * counts).mean()
+        mse = ((quant_centers - centers) ** 2 * counts).mean()
 
         mses.append(mse.cpu())
         arguments.append(i)
@@ -285,6 +350,7 @@ def _compute_amax_mse(calib_hist, calib_bin_edges, num_bits, unsigned, stride=1,
     calib_amax = centers[arguments[argmin]]
 
     return calib_amax
+
 
 def _compute_amax_percentile(calib_hist, calib_bin_edges, percentile):
     """Returns amax that clips the percentile fraction of collected data"""
@@ -300,11 +366,14 @@ def _compute_amax_percentile(calib_hist, calib_bin_edges, percentile):
     cdf = np.cumsum(calib_hist / total)
     idx = np.searchsorted(cdf, percentile / 100)
     calib_amax = calib_bin_edges[idx]
-    calib_amax = torch.tensor(calib_amax.item()) #pylint: disable=not-callable
+    calib_amax = torch.tensor(calib_amax.item())  # pylint: disable=not-callable
 
     return calib_amax
 
-def calibrate_weights(model, method="percentile", perchannel=True, percentile=99.99, num_bins=2048):
+
+def calibrate_weights(
+    model, method="percentile", perchannel=True, percentile=99.99, num_bins=2048
+):
     """Calibrate weights of all child quantized modules
 
     Ideally, we would split calibration functionality to histogram collector and calibrator which
@@ -332,7 +401,7 @@ def calibrate_weights(model, method="percentile", perchannel=True, percentile=99
             channel_second_modules = (
                 quant_nn.QuantConvTranspose1d,
                 quant_nn.QuantConvTranspose2d,
-                quant_nn.QuantConvTranspose3d
+                quant_nn.QuantConvTranspose3d,
             )
             if perchannel:
                 axis = 1 if isinstance(module, channel_second_modules) else 0
@@ -344,16 +413,27 @@ def calibrate_weights(model, method="percentile", perchannel=True, percentile=99
             # but it is not the primary usage of this function
             if axis is None:
                 input_weights = module.weight.abs().cpu().detach().numpy()
-                calib_hist, calib_bin_edges = np.histogram(input_weights, bins=2048, range=(0, input_weights.max()))
+                calib_hist, calib_bin_edges = np.histogram(
+                    input_weights, bins=2048, range=(0, input_weights.max())
+                )
                 calib_hist = [calib_hist]
                 calib_bin_edges = [calib_bin_edges]
             else:
                 calib_hist = []
                 calib_bin_edges = []
                 for i in range(axis_size):
-                    input_weights = module.weight.index_select(axis, torch.tensor(
-                        i, device=module.weight.device)).abs().cpu().detach().numpy()
-                    hist, bin_edges = np.histogram(input_weights, bins=num_bins, range=(0, input_weights.max()))
+                    input_weights = (
+                        module.weight.index_select(
+                            axis, torch.tensor(i, device=module.weight.device)
+                        )
+                        .abs()
+                        .cpu()
+                        .detach()
+                        .numpy()
+                    )
+                    hist, bin_edges = np.histogram(
+                        input_weights, bins=num_bins, range=(0, input_weights.max())
+                    )
                     calib_hist.append(hist)
                     calib_bin_edges.append(bin_edges)
 
@@ -361,13 +441,23 @@ def calibrate_weights(model, method="percentile", perchannel=True, percentile=99
             if method == "max":
                 reduce_axis = list(range(module.weight.dim()))
                 reduce_axis.remove(axis)
-                calib_amax.append(quant_utils.reduce_amax(module.weight, axis=reduce_axis))
-            elif method == 'mse':
+                calib_amax.append(
+                    quant_utils.reduce_amax(module.weight, axis=reduce_axis)
+                )
+            elif method == "mse":
                 for i in range(axis_size):
-                    calib_amax.append(_compute_amax_mse(calib_hist[i], calib_bin_edges[i], num_bits, unsigned))
-            elif method == 'percentile':
+                    calib_amax.append(
+                        _compute_amax_mse(
+                            calib_hist[i], calib_bin_edges[i], num_bits, unsigned
+                        )
+                    )
+            elif method == "percentile":
                 for i in range(axis_size):
-                    calib_amax.append(_compute_amax_percentile(calib_hist[i], calib_bin_edges[i], percentile))
+                    calib_amax.append(
+                        _compute_amax_percentile(
+                            calib_hist[i], calib_bin_edges[i], percentile
+                        )
+                    )
             else:
                 raise TypeError("Unsupported calibration method {}".format(method))
 

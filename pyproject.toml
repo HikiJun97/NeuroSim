@@ -33,5 +33,9 @@ target-version = "py313"
 select = ["E", "W", "F", "I"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401", "F403"]
+"pytorch-quantization/**" = ["E711", "E712", "E721", "E741", "F401", "F403", "F405", "F841"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["neurosim"]

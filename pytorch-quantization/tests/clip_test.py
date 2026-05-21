@@ -18,15 +18,13 @@
 
 """tests of Clip module."""
 
-import pytest
 import numpy as np
-
+import pytest
 import torch
-
 from pytorch_quantization.nn.modules import clip
 
 # make everything run on the GPU
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.set_default_tensor_type("torch.cuda.FloatTensor")
 
 np.random.seed(1234)
 torch.manual_seed(1234)
@@ -34,8 +32,7 @@ torch.manual_seed(1234)
 # pylint:disable=missing-docstring, no-self-use
 
 
-class TestClip():
-
+class TestClip:
     def test_simple_run(self):
         x_np = np.random.rand(1023).astype(np.float32)
         x_torch = torch.Tensor(x_np)
@@ -66,4 +63,7 @@ class TestClip():
 
         assert x.grad.cpu()[x.cpu() < min_value].sum() == 0
         assert x.grad.cpu()[x.cpu() > max_value].sum() == 0
-        assert torch.equal(clip_x.grad[(x > min_value) & (x < max_value)], x.grad[(x > min_value) & (x < max_value)])
+        assert torch.equal(
+            clip_x.grad[(x > min_value) & (x < max_value)],
+            x.grad[(x > min_value) & (x < max_value)],
+        )

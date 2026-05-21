@@ -17,19 +17,22 @@
 
 
 """Tests of the classification flow"""
+
+import glob
 import os
 import subprocess
 import sys
 from os import path
-import glob
+
 import pytest
+
 # pylint:disable=missing-docstring, no-self-use
 
-class TestClassificationFlow():
 
+class TestClassificationFlow:
     def test_resnet18(self, request, pytestconfig):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        dataset_dir = pytestconfig.getoption('--data-dir')
+        dataset_dir = pytestconfig.getoption("--data-dir")
 
         # skip if the data dir flag was not set
         if not dataset_dir:
@@ -37,33 +40,43 @@ class TestClassificationFlow():
 
         # Verify data dir exists
         if not path.exists(dataset_dir):
-            print("Dataset path %s doesn't exist"%(dataset_dir), file=sys.stderr)
+            print("Dataset path %s doesn't exist" % (dataset_dir), file=sys.stderr)
             assert path.exists(dataset_dir)
 
         # Append required paths to PYTHONPATH
         test_env = os.environ.copy()
-        if 'PYTHONPATH' not in test_env:
-            test_env['PYTHONPATH'] = ""
+        if "PYTHONPATH" not in test_env:
+            test_env["PYTHONPATH"] = ""
 
         # Add project root and torchvision to the path (assuming running in nvcr.io/nvidia/pytorch:20.08-py3)
-        test_env['PYTHONPATH'] += ":/opt/pytorch/vision/references/classification/:%s/../"%(dir_path)
+        test_env["PYTHONPATH"] += (
+            ":/opt/pytorch/vision/references/classification/:%s/../" % (dir_path)
+        )
 
         # Add requirement egg files manually to path since we're spawning a new process (downloaded by setuptools)
         for egg in glob.glob(dir_path + "/../.eggs/*.egg"):
-            test_env['PYTHONPATH'] += ":%s"%(egg)
+            test_env["PYTHONPATH"] += ":%s" % (egg)
 
         # Run in a subprocess to avoid contaminating the module state for other test cases
         ret = subprocess.run(
             [
-                'python3', dir_path + '/../examples/torchvision/classification_flow.py',
-                '--data-dir', dataset_dir,
-                '--model', 'resnet18', '--pretrained',
-                '-t', '0.5',
-                '--num-finetune-epochs', '2',
-                '--evaluate-onnx',
+                "python3",
+                dir_path + "/../examples/torchvision/classification_flow.py",
+                "--data-dir",
+                dataset_dir,
+                "--model",
+                "resnet18",
+                "--pretrained",
+                "-t",
+                "0.5",
+                "--num-finetune-epochs",
+                "2",
+                "--evaluate-onnx",
             ],
             env=test_env,
-            check=False, stdout=subprocess.PIPE)
+            check=False,
+            stdout=subprocess.PIPE,
+        )
 
         # If the test failed dump the output to stderr for better logging
         if ret.returncode != 0:

@@ -19,7 +19,7 @@
 """Abstract base class for calibrators"""
 
 
-class _Calibrator():
+class _Calibrator:
     """Abstract base class of calibrators
     Args:
         num_bits: An integer. Number of bits of quantization.
@@ -29,6 +29,7 @@ class _Calibrator():
     Readonly Properties:
         axis:
     """
+
     def __init__(self, num_bits, axis, unsigned):
         self._num_bits = num_bits
         self._axis = axis

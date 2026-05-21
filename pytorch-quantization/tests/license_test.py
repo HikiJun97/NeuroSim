@@ -18,29 +18,27 @@
 
 """test the license of source files."""
 
-import pytest
 from pathlib import Path
-from filecmp import cmp
 
 # pylint:disable=missing-docstring, no-self-use
 
-class TestLicense():
 
+class TestLicense:
     def test_license(self):
         root = Path(__file__).parent.parent.absolute()
         root_len = len(str(root))
 
         # Collect files ending with relevant extensions
         file_list = []
-        file_types = ['*.py', '*.cpp', '*.cu', '*.h', '*.hpp', '*.c', '*.sh']
+        file_types = ["*.py", "*.cpp", "*.cu", "*.h", "*.hpp", "*.c", "*.sh"]
         for ft in file_types:
             file_list += list(root.rglob(ft))
 
         # Trim files from build folders
-        build_folders = ['build', 'dist', '.eggs', '.vscode']
+        build_folders = ["build", "dist", ".eggs", ".vscode"]
         build_files = []
         for src_file in file_list:
-            local_path = str(src_file.parents[0])[root_len : ]
+            local_path = str(src_file.parents[0])[root_len:]
             for folder in build_folders:
                 if folder in local_path:
                     build_files.append(src_file)
@@ -48,11 +46,11 @@ class TestLicense():
         for bf in build_files:
             file_list.remove(bf)
 
-        print (f"Found {len(file_list)} source files")
+        print(f"Found {len(file_list)} source files")
 
-        cpp_header = (root / 'tests' / 'license_test_header_cpp.txt').open().readlines()
-        py_header = (root / 'tests' / 'license_test_header_py.txt').open().readlines()
-        sh_header = (root / 'tests' / 'license_test_header_sh.txt').open().readlines()
+        cpp_header = (root / "tests" / "license_test_header_cpp.txt").open().readlines()
+        py_header = (root / "tests" / "license_test_header_py.txt").open().readlines()
+        sh_header = (root / "tests" / "license_test_header_sh.txt").open().readlines()
 
         invalid_files = []
         for f in file_list:
@@ -63,9 +61,9 @@ class TestLicense():
             if len(src_lines) == 0:
                 continue
 
-            if f.suffix == '.py':
+            if f.suffix == ".py":
                 header = py_header
-            elif f.suffix == '.sh':
+            elif f.suffix == ".sh":
                 header = sh_header
             else:
                 header = cpp_header
@@ -83,4 +81,6 @@ class TestLicense():
         if len(invalid_files) > 0:
             for f in invalid_files:
                 print(f"The file {f} has an invalid header!")
-            raise AssertionError("%d files have invalid headers!" % (len(invalid_files)))
+            raise AssertionError(
+                "%d files have invalid headers!" % (len(invalid_files))
+            )

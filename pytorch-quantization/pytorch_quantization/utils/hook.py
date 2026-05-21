@@ -1,71 +1,89 @@
-#from modules.quantize import quantize, quantize_grad, QConv2d, QLinear, RangeBN
+# from modules.quantize import quantize, quantize_grad, QConv2d, QLinear, RangeBN
 import os
-import torch.nn as nn
-import shutil
+
 import numpy as np
 import torch
-import pytorch_quantization.cim.modules.macro as macro
-
 
 
 def dec2bin(x, num_bits):
     x = x.int()
 
     output = torch.zeros(x.shape[0], x.shape[1], num_bits, device=x.device)
-    
+
     for i in range(num_bits):
         bit = (x >> (num_bits - 1 - i)) & 1
-        output[:,:, i] = bit
-    
-    output = output.view(x.shape[0], x.shape[1]*num_bits) 
-    return output   
+        output[:, :, i] = bit
+
+    output = output.view(x.shape[0], x.shape[1] * num_bits)
+    return output
+
 
 def dec2val(x, num_bits, cells_per_weight, bitcell, base):
     x = x.int()
 
     output = torch.zeros(x.shape[0], x.shape[1], num_bits, device=x.device)
-    
+
     for i in range(cells_per_weight):
-        val = (x >> bitcell*i) & (base-1)
-        output[:,:, i] = val
-    
-    output = output.view(x.shape[0], x.shape[1]*num_bits)  
+        val = (x >> bitcell * i) & (base - 1)
+        output[:, :, i] = val
+
+    output = output.view(x.shape[0], x.shape[1] * num_bits)
 
     return output
+
 
 def write_layer(self, input2d, weight2d):
     # inputs and weights are in integer format
 
     rows_per_input = input2d.shape[0] // self.batch_size
     input_bin = dec2bin(input2d[0:rows_per_input], self._cim_args.input_precision)
-    cell_value = dec2val(weight2d, self._cim_args.weight_precision, self._cim_args.bitcell)
+    cell_value = dec2val(
+        weight2d, self._cim_args.weight_precision, self._cim_args.bitcell
+    )
 
-    input_file_name =  './layer_record_' + self._cim_args.model + '/input' + str(self.name) + '.csv'
-    weight_file_name =  './layer_record_' + self._cim_args.model + '/weight' + str(self.name) + '.csv'
-    f = open('./layer_record_' + self._cim_args.model + '/trace_command.sh', "a")
-    f.write(weight_file_name+' '+input_file_name+' ')
+    input_file_name = (
+        "./layer_record_" + self._cim_args.model + "/input" + str(self.name) + ".csv"
+    )
+    weight_file_name = (
+        "./layer_record_" + self._cim_args.model + "/weight" + str(self.name) + ".csv"
+    )
+    f = open("./layer_record_" + self._cim_args.model + "/trace_command.sh", "a")
+    f.write(weight_file_name + " " + input_file_name + " ")
 
-    np.savetxt(input_file_name, input_bin, delimiter=",",fmt='%s')
-    np.savetxt(weight_file_name, cell_value, delimiter=",",fmt='%s')
+    np.savetxt(input_file_name, input_bin, delimiter=",", fmt="%s")
+    np.savetxt(weight_file_name, cell_value, delimiter=",", fmt="%s")
 
 
 def make_records(args):
     # create layer record directory
-    if not os.path.exists('./layer_record_'+str(args.model)):
-        os.makedirs('./layer_record_'+str(args.model))
+    if not os.path.exists("./layer_record_" + str(args.model)):
+        os.makedirs("./layer_record_" + str(args.model))
 
-    if os.path.exists('./layer_record_'+str(args.model)+'/trace_command.sh'):
-        os.remove('./layer_record_'+str(args.model)+'/trace_command.sh')
+    if os.path.exists("./layer_record_" + str(args.model) + "/trace_command.sh"):
+        os.remove("./layer_record_" + str(args.model) + "/trace_command.sh")
 
-    f = open('./layer_record_'+str(args.model)+'/trace_command.sh', "w")
-    f.write('./NeuroSIM/main ./NeuroSIM/NetWork_'+str(args.model)+'.csv '+str(args.weight_precision)+' '+str(args.input_precision)+' '+str(args.sub_array[0])+' '+str(args.parallel_read)+' ')
+    f = open("./layer_record_" + str(args.model) + "/trace_command.sh", "w")
+    f.write(
+        "./NeuroSIM/main ./NeuroSIM/NetWork_"
+        + str(args.model)
+        + ".csv "
+        + str(args.weight_precision)
+        + " "
+        + str(args.input_precision)
+        + " "
+        + str(args.sub_array[0])
+        + " "
+        + str(args.parallel_read)
+        + " "
+    )
     f.close()
 
     # remove existing NetWork.csv
-    if os.path.exists('./NeuroSIM/NetWork_'+str(args.model)+'.csv'):
-        os.remove('./NeuroSIM/NetWork_'+str(args.model)+'.csv')  
+    if os.path.exists("./NeuroSIM/NetWork_" + str(args.model) + ".csv"):
+        os.remove("./NeuroSIM/NetWork_" + str(args.model) + ".csv")
 
-# def Neural_Sim(self, input, output): 
+
+# def Neural_Sim(self, input, output):
 #     global model_n
 
 #     print("quantize layer ", self.name)
@@ -81,7 +99,7 @@ def make_records(args):
 #     if len(self.weight.shape) > 2:
 #         k=self.weight.shape[-1]
 #         padding = self.padding
-#         stride = self.stride  
+#         stride = self.stride
 #         write_matrix_activation_conv(stretch_input(input[0].cpu().data.numpy(),k,padding,stride),None,self.wl_input,input_file_name)
 #     else:
 #         write_matrix_activation_fc(input[0].cpu().data.numpy(),None ,self.wl_input, input_file_name)
@@ -169,10 +187,10 @@ def make_records(args):
 #     for handle in hook_handle_list:
 #         handle.remove()
 
-# def hardware_evaluation(model, args): 
+# def hardware_evaluation(model, args):
 #     global model_n
 #     model_n = args.model
-    
+
 #     hook_handle_list = []
 #     if not os.path.exists('./layer_record_'+str(args.model)):
 #         os.makedirs('./layer_record_'+str(args.model))
@@ -180,7 +198,7 @@ def make_records(args):
 #         os.remove('./layer_record_'+str(args.model)+'/trace_command.sh')
 #     f = open('./layer_record_'+str(args.model)+'/trace_command.sh', "w")
 #     f.write('./NeuroSIM/main ./NeuroSIM/NetWork_'+str(args.model)+'.csv '+str(args.weight_precision)+' '+str(args.input_precision)+' '+str(args.sub_array)+' '+str(args.parallel_read)+' ')
-    
+
 #     for i, layer in enumerate(model.modules()):
 #         if isinstance(layer, cim_conv.CIMConv2d, cim_linear.CIMLinear):
 #             hook_handle_list.append(layer.register_forward_hook(Neural_Sim))

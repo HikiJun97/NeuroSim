@@ -22,17 +22,15 @@ can inspect all the print messages in the project
 """
 
 import torch
-from torch import nn
-
-from pytorch_quantization import calib
-from pytorch_quantization import tensor_quant
+from pytorch_quantization import calib, tensor_quant
 from pytorch_quantization import nn as quant_nn
 from pytorch_quantization.nn.modules.tensor_quantizer import TensorQuantizer
+from torch import nn
 
 # pylint:disable=missing-docstring, no-self-use
 
-class TestPrint():
 
+class TestPrint:
     def test_print_descriptor(self):
         test_desc = tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL
         print(test_desc)

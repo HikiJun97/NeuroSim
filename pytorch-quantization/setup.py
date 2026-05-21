@@ -19,8 +19,9 @@
 """Simple setup script"""
 
 import os
-from setuptools import setup, find_packages
-from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension
+
+from setuptools import find_packages, setup
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 abspath = os.path.dirname(os.path.realpath(__file__))
 
@@ -50,7 +51,7 @@ with open(os.path.join(abspath, "VERSION")) as f:
     version = f.read().strip()
 with open(os.path.join(abspath, "pytorch_quantization/version.py"), "w") as f:
     f.write(license_header)
-    f.write(F"__version__ = \"{version}\"")
+    f.write(f'__version__ = "{version}"')
 
 setup(
     name="pytorch_quantization",
@@ -59,19 +60,18 @@ setup(
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
-
     install_requires=requirements,
     ext_modules=[
         CUDAExtension(
             name="pytorch_quantization.cuda_ext",
-            sources=[os.path.join(abspath, "src/tensor_quant.cpp"),
-                     os.path.join(abspath, "src/tensor_quant_gpu.cu")])
+            sources=[
+                os.path.join(abspath, "src/tensor_quant.cpp"),
+                os.path.join(abspath, "src/tensor_quant_gpu.cu"),
+            ],
+        )
     ],
-    cmdclass={
-        "build_ext": BuildExtension
-    },
+    cmdclass={"build_ext": BuildExtension},
     zip_safe=False,
-
     long_description=open("README.md", "r", encoding="utf-8").read(),
     url="https://github.com/nvidia/tensorrt/tools/pytorch-quantization",
     author="NVIDIA",

@@ -22,6 +22,7 @@ import re
 
 from absl import logging
 
+
 def match_parameters(model, patterns):
     """Returns an generator over module parameters if name matches key
 
@@ -41,7 +42,10 @@ def match_parameters(model, patterns):
             if re.search(pattern, name):
                 yield param
 
-def group_parameters(model, patterns_list, lrs=None, momentums=None, weight_decays=None):
+
+def group_parameters(
+    model, patterns_list, lrs=None, momentums=None, weight_decays=None
+):
     """Group parameters for using per-parameters option in optimizer
 
     Returns a list of dict that matches Pytorch optimizer fashion, see
@@ -74,27 +78,28 @@ def group_parameters(model, patterns_list, lrs=None, momentums=None, weight_deca
     for pattern in patterns_list:
         if not isinstance(pattern, list):
             raise TypeError("patterns_list must be list of list of patterns")
-        param_groups.append({'params': match_parameters(model, pattern)})
+        param_groups.append({"params": match_parameters(model, pattern)})
 
     if lrs is not None:
         if len(lrs) != len(patterns_list):
             raise TypeError("len(lrs) must match len(patterns_list)")
         for i, lr in enumerate(lrs):
-            param_groups[i]['lr'] = lr
+            param_groups[i]["lr"] = lr
 
     if momentums is not None:
         if len(momentums) != len(patterns_list):
             raise TypeError("len(momentums) must match len(patterns_list)")
         for i, momentum in enumerate(momentums):
-            param_groups[i]['momentum'] = momentum
+            param_groups[i]["momentum"] = momentum
 
     if weight_decays is not None:
         if len(weight_decays) != len(patterns_list):
             raise TypeError("len(weight_decays) must match len(patterns_list)")
         for i, weight_decay in enumerate(weight_decays):
-            param_groups[i]['weight_decay'] = weight_decay
+            param_groups[i]["weight_decay"] = weight_decay
 
     return param_groups
+
 
 def freeze_parameters(model, patterns):
     """Set requires_grad to False if patterns match name
@@ -110,6 +115,7 @@ def freeze_parameters(model, patterns):
                 logging.warning("Freeze %s.", name)
                 param.requires_grad = False
 
+
 def quant_weight_inplace(model):
     """Make quantization inplace
 
@@ -123,9 +129,13 @@ def quant_weight_inplace(model):
     or Integer Programming.
     """
     for name, module in model.named_modules():
-        if hasattr(module, '_weight_quantizer') and module.weight_quantizer is not None:
+        if hasattr(module, "_weight_quantizer") and module.weight_quantizer is not None:
             if not module.weight_quantizer.fake_quant:
-                logging.warning(("In-place real quantization is VERY dangerous and should be used for inference only. "
-                                 "Make sure that is the desired behavior."))
+                logging.warning(
+                    (
+                        "In-place real quantization is VERY dangerous and should be used for inference only. "
+                        "Make sure that is the desired behavior."
+                    )
+                )
             logging.warning("In-place quantize weight of %s", name)
             module.weight.data.copy_(module.weight_quantizer(module.weight))

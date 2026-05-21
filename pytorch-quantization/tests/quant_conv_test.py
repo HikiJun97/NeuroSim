@@ -20,22 +20,22 @@
 Mose tests check the functionality of all the combinations in Quant conv against the corresponding functionalities in
 tensor_quant. There are tests for all the three QuantConv1D, QuantConv2D, and QuantConv3D
 """
-import pytest
+
 import numpy as np
-
+import pytest
 import torch
-from torch import nn
 import torch.nn.functional as F
-
 from pytorch_quantization import tensor_quant
-from pytorch_quantization.tensor_quant import QuantDescriptor
-from pytorch_quantization.nn.modules.tensor_quantizer import TensorQuantizer
 from pytorch_quantization import utils as quant_utils
 from pytorch_quantization.nn.modules import quant_conv
+from pytorch_quantization.nn.modules.tensor_quantizer import TensorQuantizer
+from pytorch_quantization.tensor_quant import QuantDescriptor
+from torch import nn
+
 import tests.utils as test_utils
 
 # make everything run on the GPU
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.set_default_tensor_type("torch.cuda.FloatTensor")
 
 torch.backends.cudnn.deterministic = True
 
@@ -46,18 +46,16 @@ np.random.seed(1234)
 _NUM_IN_CHANNELS = 13
 _NUM_OUT_CHANNELS = 17
 
-class TestQuantConv2D():
-    #Quantizing weight
+
+class TestQuantConv2D:
+    # Quantizing weight
 
     def test_no_quant(self):
-
         kernel_size = 3
 
         quant_conv_object = quant_conv.QuantConv2d(
-            _NUM_IN_CHANNELS,
-            _NUM_OUT_CHANNELS,
-            kernel_size,
-            bias=False)
+            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False
+        )
         quant_conv_object.input_quantizer.disable()
         quant_conv_object.weight_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 256, 256)
@@ -67,7 +65,9 @@ class TestQuantConv2D():
 
         out1 = F.conv2d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_weight_fake_quant_per_tensor(self):
         kernel_size = 3
@@ -77,16 +77,21 @@ class TestQuantConv2D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=False,
-            quant_desc_weight=QuantDescriptor())
+            quant_desc_weight=QuantDescriptor(),
+        )
         quant_conv_object.input_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 256, 256)
 
         weight_copy = quant_conv_object.weight.clone()
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy))
+        )
 
         out1 = F.conv2d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_weight_fake_quant_per_channel(self):
         kernel_size = 3
@@ -96,71 +101,100 @@ class TestQuantConv2D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=False,
-            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL)
+            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL,
+        )
         quant_conv_object.input_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 256, 256)
 
         weight_copy = quant_conv_object.weight.clone()
         quant_weight = tensor_quant.fake_tensor_quant(
             weight_copy,
-            torch.max(torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True)[0].view(
-                _NUM_OUT_CHANNELS, 1, 1, 1))
+            torch.max(
+                torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True
+            )[0].view(_NUM_OUT_CHANNELS, 1, 1, 1),
+        )
 
         out1 = F.conv2d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_in_feature_fake_quant(self):
+        kernel_size = 3
+
+        quant_conv_object = quant_conv.QuantConv2d(
+            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False
+        )
+        quant_conv_object.weight_quantizer.disable()
+        test_input = torch.randn(16, _NUM_IN_CHANNELS, 256, 256)
+
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
+
+        out1 = F.conv2d(quant_input, quant_conv_object.weight)
+        out2 = quant_conv_object(test_input)
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
+
+    def test_fake_quant_per_tensor(self):
         kernel_size = 3
 
         quant_conv_object = quant_conv.QuantConv2d(
             _NUM_IN_CHANNELS,
             _NUM_OUT_CHANNELS,
             kernel_size,
-            bias=False)
-        quant_conv_object.weight_quantizer.disable()
-        test_input = torch.randn(16, _NUM_IN_CHANNELS, 256, 256)
-
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
-
-        out1 = F.conv2d(quant_input, quant_conv_object.weight)
-        out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
-
-    def test_fake_quant_per_tensor(self):
-        kernel_size = 3
-
-        quant_conv_object = quant_conv.QuantConv2d(
-            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False, quant_desc_weight=QuantDescriptor())
+            bias=False,
+            quant_desc_weight=QuantDescriptor(),
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16, 16)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy))
+        )
 
         out1 = F.conv2d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel(self):
         kernel_size = 3
 
-        quant_conv_object = quant_conv.QuantConv2d(_NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False,
-                                                   quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL)
+        quant_conv_object = quant_conv.QuantConv2d(
+            _NUM_IN_CHANNELS,
+            _NUM_OUT_CHANNELS,
+            kernel_size,
+            bias=False,
+            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL,
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16, 16)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
         quant_weight = tensor_quant.fake_tensor_quant(
             weight_copy,
-            torch.max(torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True)[0].view(
-                _NUM_OUT_CHANNELS, 1, 1, 1))
+            torch.max(
+                torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True
+            )[0].view(_NUM_OUT_CHANNELS, 1, 1, 1),
+        )
 
         out1 = F.conv2d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel_other_prec(self):
         kernel_size = 3
@@ -174,7 +208,8 @@ class TestQuantConv2D():
             kernel_size,
             bias=False,
             quant_desc_input=quant_desc_input,
-            quant_desc_weight=quant_desc_weight)
+            quant_desc_weight=quant_desc_weight,
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16, 16)
 
         test_input_quantizer = TensorQuantizer(quant_desc_input)
@@ -187,26 +222,39 @@ class TestQuantConv2D():
 
         out1 = F.conv2d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel_bias(self):
         kernel_size = 3
 
-        quant_conv_object = quant_conv.QuantConv2d(_NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=True,
-                                                   quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL)
+        quant_conv_object = quant_conv.QuantConv2d(
+            _NUM_IN_CHANNELS,
+            _NUM_OUT_CHANNELS,
+            kernel_size,
+            bias=True,
+            quant_desc_weight=tensor_quant.QUANT_DESC_8BIT_CONV2D_WEIGHT_PER_CHANNEL,
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16, 16)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
         quant_weight = tensor_quant.fake_tensor_quant(
             weight_copy,
-            torch.max(torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True)[0].view(
-                _NUM_OUT_CHANNELS, 1, 1, 1))
+            torch.max(
+                torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True
+            )[0].view(_NUM_OUT_CHANNELS, 1, 1, 1),
+        )
 
         out1 = F.conv2d(quant_input, quant_weight, bias=quant_conv_object.bias)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_against_unquantized(self):
         kernel_size = 3
@@ -221,7 +269,8 @@ class TestQuantConv2D():
             kernel_size,
             bias=True,
             quant_desc_input=QuantDescriptor(num_bits=16),
-            quant_desc_weight=QuantDescriptor(num_bits=16, axis=(0)))
+            quant_desc_weight=QuantDescriptor(num_bits=16, axis=(0)),
+        )
 
         # Reset seed. Make sure weight and bias are the same
         torch.manual_seed(12345)
@@ -233,7 +282,6 @@ class TestQuantConv2D():
         output = conv2d(test_input)
 
         test_utils.compare(fake_quant_output, output, rtol=1e-6, atol=1.5e-4)
-
 
     def test_set_default_quant_desc(self):
         quant_conv_layer = quant_conv.Conv2d(32, 257, 3)
@@ -263,18 +311,16 @@ class TestQuantConv2D():
 
     def test_unused_kwargs(self):
         with pytest.raises(TypeError, match="Unused keys"):
-            quant_conv.Conv2d(32, 257, 3, descriptor='oops')
+            quant_conv.Conv2d(32, 257, 3, descriptor="oops")
 
-class TestQuantConv1D():
 
+class TestQuantConv1D:
     def test_no_quant(self):
         kernel_size = 8
 
         quant_conv_object = quant_conv.QuantConv1d(
-            _NUM_IN_CHANNELS,
-            _NUM_OUT_CHANNELS,
-            kernel_size,
-            bias=False)
+            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False
+        )
         quant_conv_object.input_quantizer.disable()
         quant_conv_object.weight_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 256)
@@ -284,7 +330,9 @@ class TestQuantConv1D():
 
         out1 = F.conv1d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_weight_fake_quant_per_tensor(self):
         kernel_size = 8
@@ -294,16 +342,21 @@ class TestQuantConv1D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=False,
-            quant_desc_weight=QuantDescriptor())
+            quant_desc_weight=QuantDescriptor(),
+        )
         quant_conv_object.input_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 256)
 
         weight_copy = quant_conv_object.weight.clone()
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy))
+        )
 
         out1 = F.conv1d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_weight_fake_quant_per_channel(self):
         kernel_size = 3
@@ -313,7 +366,8 @@ class TestQuantConv1D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=False,
-            quant_desc_weight=QuantDescriptor(axis=(0)))
+            quant_desc_weight=QuantDescriptor(axis=(0)),
+        )
         quant_conv_object.input_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 256)
 
@@ -323,40 +377,55 @@ class TestQuantConv1D():
 
         out1 = F.conv1d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_input(self):
+        kernel_size = 3
+
+        quant_conv_object = quant_conv.QuantConv1d(
+            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False
+        )
+        quant_conv_object.weight_quantizer.disable()
+        test_input = torch.randn(20, _NUM_IN_CHANNELS, 50)
+
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
+
+        out1 = F.conv1d(quant_input, quant_conv_object.weight)
+        out2 = quant_conv_object(test_input)
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
+
+    def test_fake_quant_per_tensor(self):
         kernel_size = 3
 
         quant_conv_object = quant_conv.QuantConv1d(
             _NUM_IN_CHANNELS,
             _NUM_OUT_CHANNELS,
             kernel_size,
-            bias=False)
-        quant_conv_object.weight_quantizer.disable()
-        test_input = torch.randn(20, _NUM_IN_CHANNELS, 50)
-
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
-
-        out1 = F.conv1d(quant_input, quant_conv_object.weight)
-        out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
-
-    def test_fake_quant_per_tensor(self):
-        kernel_size = 3
-
-        quant_conv_object = quant_conv.QuantConv1d(
-            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False, quant_desc_weight=QuantDescriptor())
+            bias=False,
+            quant_desc_weight=QuantDescriptor(),
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
-        quant_weight = tensor_quant.fake_tensor_quant(weight_copy, torch.max(torch.abs(weight_copy)))
+        quant_weight = tensor_quant.fake_tensor_quant(
+            weight_copy, torch.max(torch.abs(weight_copy))
+        )
 
         out1 = F.conv1d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel(self):
         kernel_size = 3
@@ -366,20 +435,27 @@ class TestQuantConv1D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=False,
-            quant_desc_weight=QuantDescriptor(axis=(0)))
+            quant_desc_weight=QuantDescriptor(axis=(0)),
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
         quant_weight = tensor_quant.fake_tensor_quant(
             weight_copy,
-            torch.max(torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True)[0].view(
-                _NUM_OUT_CHANNELS, 1, 1))
+            torch.max(
+                torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True
+            )[0].view(_NUM_OUT_CHANNELS, 1, 1),
+        )
 
         out1 = F.conv1d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel_other_prec(self):
         kernel_size = 3
@@ -393,7 +469,8 @@ class TestQuantConv1D():
             kernel_size,
             bias=False,
             quant_desc_input=quant_desc_input,
-            quant_desc_weight=quant_desc_weight)
+            quant_desc_weight=quant_desc_weight,
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16)
 
         test_input_quantizer = TensorQuantizer(quant_desc_input)
@@ -406,7 +483,9 @@ class TestQuantConv1D():
 
         out1 = F.conv1d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_per_channel_bias(self):
         kernel_size = 3
@@ -416,20 +495,27 @@ class TestQuantConv1D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=True,
-            quant_desc_weight=QuantDescriptor(axis=(0)))
+            quant_desc_weight=QuantDescriptor(axis=(0)),
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 16)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
         quant_weight = tensor_quant.fake_tensor_quant(
             weight_copy,
-            torch.max(torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True)[0].view(
-                _NUM_OUT_CHANNELS, 1, 1))
+            torch.max(
+                torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True
+            )[0].view(_NUM_OUT_CHANNELS, 1, 1),
+        )
 
         out1 = F.conv1d(quant_input, quant_weight, bias=quant_conv_object.bias)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_against_unquantized(self):
         kernel_size = 3
@@ -444,7 +530,8 @@ class TestQuantConv1D():
             kernel_size,
             bias=True,
             quant_desc_input=QuantDescriptor(num_bits=16),
-            quant_desc_weight=QuantDescriptor(num_bits=16, axis=(0)))
+            quant_desc_weight=QuantDescriptor(num_bits=16, axis=(0)),
+        )
 
         # Reset seed. Make sure weight and bias are the same
         torch.manual_seed(12345)
@@ -458,17 +545,15 @@ class TestQuantConv1D():
         test_utils.compare(fake_quant_output, output, rtol=1e-5, atol=1e-4)
 
 
-class TestQuantConv3D():
-    #Quantizing weight
+class TestQuantConv3D:
+    # Quantizing weight
 
     def test_no_quant(self):
         kernel_size = 8
 
         quant_conv_object = quant_conv.QuantConv3d(
-            _NUM_IN_CHANNELS,
-            _NUM_OUT_CHANNELS,
-            kernel_size,
-            bias=False)
+            _NUM_IN_CHANNELS, _NUM_OUT_CHANNELS, kernel_size, bias=False
+        )
         quant_conv_object.input_quantizer.disable()
         quant_conv_object.weight_quantizer.disable()
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 8, 8, 8)
@@ -478,7 +563,9 @@ class TestQuantConv3D():
 
         out1 = F.conv3d(test_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_quant_per_channel_other_prec(self):
         kernel_size = 3
@@ -492,7 +579,8 @@ class TestQuantConv3D():
             kernel_size,
             bias=False,
             quant_desc_input=quant_desc_input,
-            quant_desc_weight=quant_desc_weight)
+            quant_desc_weight=quant_desc_weight,
+        )
         test_input = torch.randn(16, _NUM_IN_CHANNELS, 8, 8, 8)
 
         test_input_quantizer = TensorQuantizer(quant_desc_input)
@@ -505,7 +593,9 @@ class TestQuantConv3D():
 
         out1 = F.conv3d(quant_input, quant_weight)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_fake_quant_quant_per_channel_bias(self):
         kernel_size = 3
@@ -515,20 +605,27 @@ class TestQuantConv3D():
             _NUM_OUT_CHANNELS,
             kernel_size,
             bias=True,
-            quant_desc_weight=QuantDescriptor(axis=(0)))
+            quant_desc_weight=QuantDescriptor(axis=(0)),
+        )
         test_input = torch.randn(8, _NUM_IN_CHANNELS, 8, 8, 8)
 
-        quant_input = tensor_quant.fake_tensor_quant(test_input, torch.max(torch.abs(test_input)))
+        quant_input = tensor_quant.fake_tensor_quant(
+            test_input, torch.max(torch.abs(test_input))
+        )
 
         weight_copy = quant_conv_object.weight.clone()
         quant_weight = tensor_quant.fake_tensor_quant(
             weight_copy,
-            torch.max(torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True)[0].view(
-                _NUM_OUT_CHANNELS, 1, 1, 1, 1))
+            torch.max(
+                torch.abs(weight_copy).view(_NUM_OUT_CHANNELS, -1), dim=1, keepdim=True
+            )[0].view(_NUM_OUT_CHANNELS, 1, 1, 1, 1),
+        )
 
         out1 = F.conv3d(quant_input, quant_weight, bias=quant_conv_object.bias)
         out2 = quant_conv_object(test_input)
-        np.testing.assert_array_equal(out1.detach().cpu().numpy(), out2.detach().cpu().numpy())
+        np.testing.assert_array_equal(
+            out1.detach().cpu().numpy(), out2.detach().cpu().numpy()
+        )
 
     def test_against_unquantized(self):
         kernel_size = 3
@@ -543,7 +640,8 @@ class TestQuantConv3D():
             kernel_size,
             bias=True,
             quant_desc_input=QuantDescriptor(num_bits=16),
-            quant_desc_weight=QuantDescriptor(num_bits=16, axis=(0)))
+            quant_desc_weight=QuantDescriptor(num_bits=16, axis=(0)),
+        )
 
         # Reset seed. Make sure weight and bias are the same
         torch.manual_seed(1234)

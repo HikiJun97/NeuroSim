@@ -16,24 +16,18 @@
 #
 
 
-"""tests of QuantRNN module.
-"""
-import pytest
-
-import torch
-from torch import nn
+"""tests of QuantRNN module."""
 
 import numpy as np
-
-from pytorch_quantization.nn.modules import quant_rnn
+import torch
 from pytorch_quantization import tensor_quant
-
-from tests.fixtures import verbose
+from pytorch_quantization.nn.modules import quant_rnn
+from torch import nn
 
 from . import utils
 
 # make everything run on the GPU
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.set_default_tensor_type("torch.cuda.FloatTensor")
 # change default type to double if utils.compare flags a small error, may just be floating point rounding error
 # torch.set_default_tensor_type('torch.cuda.DoubleTensor')
 
@@ -46,14 +40,14 @@ if torch.cuda.is_available():
 
 # global state for saving/loading test vectors
 SAVE_VECTORS = 0
-VECTOR_FILE = 'tests/quant_rnn_test_vectors.pt'
+VECTOR_FILE = "tests/quant_rnn_test_vectors.pt"
 if SAVE_VECTORS:
     TEST_VECTORS = dict()
 else:
     TEST_VECTORS = torch.load(VECTOR_FILE)
 
 
-class TestQuantLSTMCell():
+class TestQuantLSTMCell:
     """
     tests for quant_rnn.QuantLSTMCell
     default parameters in QuantLSTMCell:
@@ -72,8 +66,13 @@ class TestQuantLSTMCell():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=8)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=8, axis=(1,))
-        quant_rnn_object = quant_rnn.QuantLSTMCell(input_size, hidden_size, bias=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
+        quant_rnn_object = quant_rnn.QuantLSTMCell(
+            input_size,
+            hidden_size,
+            bias=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
         quant_rnn_object._input_quantizer.disable()
         quant_rnn_object._weight_quantizer.disable()
 
@@ -139,8 +138,13 @@ class TestQuantLSTMCell():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=16)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=16, axis=(1,))
-        quant_rnn_object = quant_rnn.QuantLSTMCell(input_size, hidden_size, bias=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
+        quant_rnn_object = quant_rnn.QuantLSTMCell(
+            input_size,
+            hidden_size,
+            bias=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
         ref_rnn_object = nn.LSTMCell(input_size, hidden_size, bias=False)
 
         # copy weights from one rnn to the other
@@ -172,8 +176,13 @@ class TestQuantLSTMCell():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=num_bits)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=num_bits)
-        quant_rnn_object = quant_rnn.QuantLSTMCell(input_size, hidden_size, bias=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
+        quant_rnn_object = quant_rnn.QuantLSTMCell(
+            input_size,
+            hidden_size,
+            bias=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
         ref_rnn_object = nn.LSTMCell(input_size, hidden_size, bias=False)
 
         input = torch.randn(batch, input_size)
@@ -182,7 +191,9 @@ class TestQuantLSTMCell():
 
         quant_hout, quant_cout = quant_rnn_object(input, hx=(hidden, cell))
 
-        quant_input, quant_hidden = utils.quantize_by_range_fused((input, hidden), num_bits)
+        quant_input, quant_hidden = utils.quantize_by_range_fused(
+            (input, hidden), num_bits
+        )
 
         utils.copy_state_and_quantize_fused(ref_rnn_object, quant_rnn_object, num_bits)
 
@@ -193,7 +204,7 @@ class TestQuantLSTMCell():
 
     def test_quant_input_hidden_bias(self, verbose):
         """QuantLSTMCell vs. manual input quantization + pytorchLSTMCell
-            bias should not be quantized
+        bias should not be quantized
         """
         batch = 9
         input_size = 23
@@ -202,8 +213,13 @@ class TestQuantLSTMCell():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=num_bits)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=num_bits)
-        quant_rnn_object = quant_rnn.QuantLSTMCell(input_size, hidden_size, bias=True,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
+        quant_rnn_object = quant_rnn.QuantLSTMCell(
+            input_size,
+            hidden_size,
+            bias=True,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
         ref_rnn_object = nn.LSTMCell(input_size, hidden_size, bias=True)
 
         input = torch.randn(batch, input_size)
@@ -212,7 +228,9 @@ class TestQuantLSTMCell():
 
         quant_hout, quant_cout = quant_rnn_object(input, hx=(hidden, cell))
 
-        quant_input, quant_hidden = utils.quantize_by_range_fused((input, hidden), num_bits)
+        quant_input, quant_hidden = utils.quantize_by_range_fused(
+            (input, hidden), num_bits
+        )
 
         utils.copy_state_and_quantize_fused(ref_rnn_object, quant_rnn_object, num_bits)
 
@@ -223,7 +241,7 @@ class TestQuantLSTMCell():
 
     def test_quant_different_prec(self, verbose):
         """QuantLSTMCell vs. manual input quantization + pytorch LSTMCell
-            different input and weight precisions
+        different input and weight precisions
         """
         batch = 27
         input_size = 11
@@ -233,8 +251,13 @@ class TestQuantLSTMCell():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=num_bits_input)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=num_bits_weight)
-        quant_rnn_object = quant_rnn.QuantLSTMCell(input_size, hidden_size, bias=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
+        quant_rnn_object = quant_rnn.QuantLSTMCell(
+            input_size,
+            hidden_size,
+            bias=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
         ref_rnn_object = nn.LSTMCell(input_size, hidden_size, bias=False)
 
         input = torch.randn(batch, input_size)
@@ -243,9 +266,13 @@ class TestQuantLSTMCell():
 
         quant_hout, quant_cout = quant_rnn_object(input, hx=(hidden, cell))
 
-        quant_input, quant_hidden = utils.quantize_by_range_fused((input, hidden), num_bits_input)
+        quant_input, quant_hidden = utils.quantize_by_range_fused(
+            (input, hidden), num_bits_input
+        )
 
-        utils.copy_state_and_quantize_fused(ref_rnn_object, quant_rnn_object, num_bits_weight)
+        utils.copy_state_and_quantize_fused(
+            ref_rnn_object, quant_rnn_object, num_bits_weight
+        )
 
         ref_hout, ref_cout = ref_rnn_object(quant_input, hx=(quant_hidden, cell))
 
@@ -253,7 +280,7 @@ class TestQuantLSTMCell():
         utils.compare(quant_cout, ref_cout)
 
 
-class TestQuantLSTM():
+class TestQuantLSTM:
     """
     tests for quant_rnn.QuantLSTM
     default parameters in QuantLSTM:
@@ -273,9 +300,17 @@ class TestQuantLSTM():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=8)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=8, axis=(1,))
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
         input = torch.randn(seq_len, batch, input_size)
         hidden = torch.randn(seq_len, batch, hidden_size)
         cell = torch.randn(seq_len, batch, hidden_size)
@@ -287,12 +322,26 @@ class TestQuantLSTM():
         input_size = 14
         hidden_size = 22
         seq_len = 1
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
         quant_rnn_object._input_quantizers[0].disable()
         quant_rnn_object._weight_quantizers[0].disable()
-        ref_rnn_object = nn.LSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False)
+        ref_rnn_object = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
 
         # copy weights from one rnn to the other
         ref_rnn_object.load_state_dict(quant_rnn_object.state_dict())
@@ -315,12 +364,26 @@ class TestQuantLSTM():
         hidden_size = 20
         seq_len = 1
 
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
         quant_rnn_object._input_quantizers[0].disable()
         quant_rnn_object._weight_quantizers[0].disable()
-        ref_rnn_object = nn.LSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False)
+        ref_rnn_object = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
 
         # copy weights from one rnn to the other
         ref_rnn_object.load_state_dict(quant_rnn_object.state_dict())
@@ -339,30 +402,53 @@ class TestQuantLSTM():
     def test_no_quant_all_modes(self, verbose):
         """QuantLSTM with quantization disabled vs. pytorch LSTM for all modes."""
 
-        def testcase(input_size, hidden_size, seq_len, batch, num_layers, bias, batch_first, dropout, bidirectional):
-
-            quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size,
-                    num_layers=num_layers, bias=bias, batch_first=batch_first, dropout=dropout,
-                    bidirectional=bidirectional)
+        def testcase(
+            input_size,
+            hidden_size,
+            seq_len,
+            batch,
+            num_layers,
+            bias,
+            batch_first,
+            dropout,
+            bidirectional,
+        ):
+            quant_rnn_object = quant_rnn.QuantLSTM(
+                input_size,
+                hidden_size,
+                num_layers=num_layers,
+                bias=bias,
+                batch_first=batch_first,
+                dropout=dropout,
+                bidirectional=bidirectional,
+            )
 
             num_quantizers = num_layers * 2 if bidirectional else num_layers
             for i in range(num_quantizers):
                 quant_rnn_object._input_quantizers[i].disable()
                 quant_rnn_object._weight_quantizers[i].disable()
 
-            ref_rnn_object = nn.LSTM(input_size, hidden_size,
-                    num_layers=num_layers, bias=bias, batch_first=batch_first, dropout=dropout,
-                    bidirectional=bidirectional)
+            ref_rnn_object = nn.LSTM(
+                input_size,
+                hidden_size,
+                num_layers=num_layers,
+                bias=bias,
+                batch_first=batch_first,
+                dropout=dropout,
+                bidirectional=bidirectional,
+            )
 
             # copy state from one rnn to the other
             ref_rnn_object.load_state_dict(quant_rnn_object.state_dict())
 
             input = torch.randn(seq_len, batch, input_size)
             num_directions = 2 if bidirectional else 1
-            hidden = torch.randn(num_layers*num_directions, batch, hidden_size)
-            cell = torch.randn(num_layers*num_directions, batch, hidden_size)
+            hidden = torch.randn(num_layers * num_directions, batch, hidden_size)
+            cell = torch.randn(num_layers * num_directions, batch, hidden_size)
 
-            quant_out, (quant_hout, quant_cout) = quant_rnn_object(input, hx=(hidden, cell))
+            quant_out, (quant_hout, quant_cout) = quant_rnn_object(
+                input, hx=(hidden, cell)
+            )
             ref_out, (ref_hout, ref_cout) = ref_rnn_object(input, hx=(hidden, cell))
 
             utils.compare(quant_out, ref_out)
@@ -387,11 +473,26 @@ class TestQuantLSTM():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=16)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=16, axis=(1,))
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
-        ref_rnn_object = nn.LSTM(input_size, hidden_size,
-                num_layers=1, bias=False, batch_first=False, dropout=0, bidirectional=False)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
+        ref_rnn_object = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
 
         # copy weights from one rnn to the other
         ref_rnn_object.load_state_dict(quant_rnn_object.state_dict())
@@ -425,22 +526,41 @@ class TestQuantLSTM():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=num_bits)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=num_bits)
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size, num_layers=1, bias=False,
-                batch_first=False, dropout=0, bidirectional=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
-        ref_rnn_object = nn.LSTM(input_size, hidden_size, num_layers=1, bias=False,
-                batch_first=False, dropout=0, bidirectional=False)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
+        ref_rnn_object = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
 
         input = torch.randn(seq_len, batch, input_size)
         hidden = torch.randn(seq_len, batch, hidden_size)
         cell = torch.randn(seq_len, batch, hidden_size)
 
-        quant_input, quant_hidden = utils.quantize_by_range_fused((input, hidden), num_bits)
+        quant_input, quant_hidden = utils.quantize_by_range_fused(
+            (input, hidden), num_bits
+        )
 
         utils.copy_state_and_quantize_fused(ref_rnn_object, quant_rnn_object, num_bits)
 
         quant_out, (quant_hout, quant_cout) = quant_rnn_object(input, hx=(hidden, cell))
-        ref_out, (ref_hout, ref_cout) = ref_rnn_object(quant_input, hx=(quant_hidden, cell))
+        ref_out, (ref_hout, ref_cout) = ref_rnn_object(
+            quant_input, hx=(quant_hidden, cell)
+        )
 
         utils.compare(quant_out, ref_out)
         utils.compare(quant_hout, ref_hout)
@@ -456,22 +576,41 @@ class TestQuantLSTM():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=num_bits)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=num_bits)
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size, num_layers=1, bias=True,
-                batch_first=False, dropout=0, bidirectional=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
-        ref_rnn_object = nn.LSTM(input_size, hidden_size, num_layers=1, bias=True,
-                batch_first=False, dropout=0, bidirectional=False)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=True,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
+        ref_rnn_object = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=True,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
 
         input = torch.randn(seq_len, batch, input_size)
         hidden = torch.randn(seq_len, batch, hidden_size)
         cell = torch.randn(seq_len, batch, hidden_size)
 
-        quant_input, quant_hidden = utils.quantize_by_range_fused((input, hidden), num_bits)
+        quant_input, quant_hidden = utils.quantize_by_range_fused(
+            (input, hidden), num_bits
+        )
 
         utils.copy_state_and_quantize_fused(ref_rnn_object, quant_rnn_object, num_bits)
 
         quant_out, (quant_hout, quant_cout) = quant_rnn_object(input, hx=(hidden, cell))
-        ref_out, (ref_hout, ref_cout) = ref_rnn_object(quant_input, hx=(quant_hidden, cell))
+        ref_out, (ref_hout, ref_cout) = ref_rnn_object(
+            quant_input, hx=(quant_hidden, cell)
+        )
 
         utils.compare(quant_out, ref_out)
         utils.compare(quant_hout, ref_hout)
@@ -488,33 +627,58 @@ class TestQuantLSTM():
 
         quant_desc_input = tensor_quant.QuantDescriptor(num_bits=num_bits_input)
         quant_desc_weight = tensor_quant.QuantDescriptor(num_bits=num_bits_weight)
-        quant_rnn_object = quant_rnn.QuantLSTM(input_size, hidden_size, num_layers=1, bias=False,
-                batch_first=False, dropout=0, bidirectional=False,
-                quant_desc_input=quant_desc_input, quant_desc_weight=quant_desc_weight)
-        ref_rnn_object = nn.LSTM(input_size, hidden_size, num_layers=1, bias=False,
-                batch_first=False, dropout=0, bidirectional=False)
+        quant_rnn_object = quant_rnn.QuantLSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+            quant_desc_input=quant_desc_input,
+            quant_desc_weight=quant_desc_weight,
+        )
+        ref_rnn_object = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers=1,
+            bias=False,
+            batch_first=False,
+            dropout=0,
+            bidirectional=False,
+        )
 
         input = torch.randn(seq_len, batch, input_size)
         hidden = torch.randn(seq_len, batch, hidden_size)
         cell = torch.randn(seq_len, batch, hidden_size)
 
-        quant_input, quant_hidden = utils.quantize_by_range_fused((input, hidden), num_bits_input)
+        quant_input, quant_hidden = utils.quantize_by_range_fused(
+            (input, hidden), num_bits_input
+        )
 
-        utils.copy_state_and_quantize_fused(ref_rnn_object, quant_rnn_object, num_bits_weight)
+        utils.copy_state_and_quantize_fused(
+            ref_rnn_object, quant_rnn_object, num_bits_weight
+        )
 
         quant_out, (quant_hout, quant_cout) = quant_rnn_object(input, hx=(hidden, cell))
-        ref_out, (ref_hout, ref_cout) = ref_rnn_object(quant_input, hx=(quant_hidden, cell))
+        ref_out, (ref_hout, ref_cout) = ref_rnn_object(
+            quant_input, hx=(quant_hidden, cell)
+        )
 
         utils.compare(quant_out, ref_out)
         utils.compare(quant_hout, ref_hout)
         utils.compare(quant_cout, ref_cout)
 
 
-class TestEpilogue():
+class TestEpilogue:
     """Run after all tests to save globals."""
 
     def test_save_vectors(self, verbose):
         """Save test vectors to file."""
         if SAVE_VECTORS:
             torch.save(TEST_VECTORS, VECTOR_FILE)
-            raise Exception('Saved test vectors to {}, for testing set SAVE_VECTORS = 0'.format(VECTOR_FILE))
+            raise Exception(
+                "Saved test vectors to {}, for testing set SAVE_VECTORS = 0".format(
+                    VECTOR_FILE
+                )
+            )
