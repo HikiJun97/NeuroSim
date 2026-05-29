@@ -16,10 +16,10 @@
 #
 
 
+from pytorch_quantization.nn.modules.tensor_quantizer import *
 from pytorch_quantization.nn.modules.clip import *
 from pytorch_quantization.nn.modules.quant_conv import *
 from pytorch_quantization.nn.modules.quant_instancenorm import *
 from pytorch_quantization.nn.modules.quant_linear import *
 from pytorch_quantization.nn.modules.quant_pooling import *
 from pytorch_quantization.nn.modules.quant_rnn import *
-from pytorch_quantization.nn.modules.tensor_quantizer import *
