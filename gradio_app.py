@@ -305,10 +305,17 @@ function() {
         const el = document.querySelector('#log_box textarea');
         if (!el) { setTimeout(hookLogScroll, 500); return; }
         const proto = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
-        Object.defineProperty(el, 'value', {
-            set(v) { proto.set.call(this, v); this.scrollTop = this.scrollHeight; },
-            get() { return proto.get.call(this); }
-        });
+        if (proto && proto.set) {
+            Object.defineProperty(el, 'value', {
+                configurable: true,
+                set(v) { proto.set.call(this, v); this.scrollTop = this.scrollHeight; },
+                get() { return proto.get.call(this); }
+            });
+        }
+        let prev = el.value;
+        setInterval(() => {
+            if (el.value !== prev) { prev = el.value; el.scrollTop = el.scrollHeight; }
+        }, 200);
     }
     hookLogScroll();
 }
@@ -557,6 +564,7 @@ function() {
             max_lines=25,
             autoscroll=True,
             elem_id="log_box",
+            interactive=False,
         )
         copy_btn = gr.Button("로그 복사", size="sm")
 
@@ -622,7 +630,9 @@ function() {
         )
 
         def _update_bitcell_from_upload(upload):
-            path = upload if isinstance(upload, str) else (upload.name if upload else None)
+            path = (
+                upload if isinstance(upload, str) else (upload.name if upload else None)
+            )
             v = _compute_bitcell_from_csv(path)
             return gr.update(value=v) if v is not None else gr.update()
 

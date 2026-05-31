@@ -24,7 +24,7 @@ import inspect
 from absl import logging
 from torch import nn
 
-from pytorch_quantization.nn import TensorQuantizer
+from pytorch_quantization.nn.modules.tensor_quantizer import TensorQuantizer
 from pytorch_quantization.tensor_quant import (
     QUANT_DESC_8BIT_PER_TENSOR,
     QuantDescriptor,
