@@ -13,7 +13,9 @@ streams its stdout to the UI, and bundles the run directory + layer_record
 from __future__ import annotations
 
 import atexit
+import csv
 import ctypes
+import math
 import os
 import shutil
 import signal
@@ -50,6 +52,21 @@ except OSError:
 def _child_preexec() -> None:
     if _libc is not None:
         _libc.prctl(_PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0)
+
+
+def _compute_bitcell_from_csv(path: str | None) -> int | None:
+    """Return log2(num_data_rows) from a mem_states CSV, or None if not computable."""
+    if not path:
+        return None
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            rows = [r for r in csv.reader(f) if any(c.strip() for c in r)]
+        num_states = len(rows) - 1  # subtract header row
+        if num_states <= 0 or (num_states & (num_states - 1)) != 0:
+            return None  # not a positive power of 2
+        return int(math.log2(num_states))
+    except Exception:
+        return None
 
 
 def _resolve_upload(
@@ -602,6 +619,26 @@ function() {
             inputs=log_box,
             outputs=None,
             js="async (v) => { try { await navigator.clipboard.writeText(v ?? ''); } catch (e) { console.error(e); } return []; }",
+        )
+
+        def _update_bitcell_from_upload(upload):
+            path = upload if isinstance(upload, str) else (upload.name if upload else None)
+            v = _compute_bitcell_from_csv(path)
+            return gr.update(value=v) if v is not None else gr.update()
+
+        def _update_bitcell_from_path(path):
+            v = _compute_bitcell_from_csv(path)
+            return gr.update(value=v) if v is not None else gr.update()
+
+        mem_states_upload.change(
+            fn=_update_bitcell_from_upload,
+            inputs=mem_states_upload,
+            outputs=bitcell,
+        )
+        mem_states_file_path.change(
+            fn=_update_bitcell_from_path,
+            inputs=mem_states_file_path,
+            outputs=bitcell,
         )
 
     return demo
